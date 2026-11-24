@@ -12,7 +12,7 @@
     var loader = document.getElementById("loader");
     if (!root || !window.THREE) return;
 
-    // 1. WebGL Renderer (soft shadows + filimic tone mapping for crisp miniature daylight look)
+    // 1. Crisp High-Contrast WebGL Renderer (ACES Filmic + PCF Soft Shadows + Retina DPR cap 2)
     var renderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: false,
@@ -24,28 +24,28 @@
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.08;
+    renderer.toneMappingExposure = 1.05;
     root.appendChild(renderer.domElement);
 
-    // 2. Scene, Bright Overcast Alpine Sky & Misty Valley Fog
+    // 2. Scene, Late-Afternoon Alpine Sky & Warm-Cool Horizon Haze
     var scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x9fc2de);
-    scene.fog = new THREE.FogExp2(0xb8d0e2, 0.0085);
+    scene.background = new THREE.Color(0x8faac4);
+    scene.fog = new THREE.FogExp2(0xbfb7a4, 0.0068);
 
-    // 3. Elevated Three-Quarter Tabletop Aerial Perspective Camera (Fixed Viewing Angle!)
+    // 3. Tighter, Slightly More Top-Down Fixed-Angle Aerial Perspective Camera
     var camera = new THREE.PerspectiveCamera(
-      38,
+      36,
       window.innerWidth / Math.max(1, window.innerHeight),
       0.5,
       240
     );
 
-    // Camera state: fixed tabletop three-quarter elevation angle, smooth drag-to-pan & pinch-to-zoom
-    var DEFAULT_TARGET = new THREE.Vector3(1.2, 0.0, 1.0);
-    var DEFAULT_ZOOM = 1.0;
-    var MIN_ZOOM = 0.56;
-    var MAX_ZOOM = 1.62;
-    var BASE_OFFSET = new THREE.Vector3(-4.0, 38.0, 41.0);
+    // Default framing highlights all 6 inner courtyard structures with surrounding outer estates visible at edges
+    var DEFAULT_TARGET = new THREE.Vector3(0.4, 0.0, -0.6);
+    var DEFAULT_ZOOM = 0.88;
+    var MIN_ZOOM = 0.50;
+    var MAX_ZOOM = 1.65;
+    var BASE_OFFSET = new THREE.Vector3(-2.6, 40.5, 30.5);
 
     var target = DEFAULT_TARGET.clone();
     var desiredTarget = DEFAULT_TARGET.clone();
@@ -68,28 +68,31 @@
     }
     applyCamera();
 
-    // 4. Bright Overcast Alpine Daylight Lighting (soft directional shadows + sky/grass hemisphere)
-    var hemi = new THREE.HemisphereLight(0xe4f1fc, 0x5c7344, 0.96);
+    // 4. High-Contrast Golden-Hour Directional Sunlight + Low Cool Sky Shadow Fill
+    var hemi = new THREE.HemisphereLight(0x88afd8, 0x26321d, 0.42);
     hemi.position.set(0, 50, 0);
     scene.add(hemi);
 
-    var sun = new THREE.DirectionalLight(0xfff9ee, 1.05);
-    sun.position.set(-22, 46, 26);
+    // Strong late-afternoon golden-hour sun angled obliquely across the courtyard for deep, crisp shadows
+    var sun = new THREE.DirectionalLight(0xffcf88, 1.85);
+    sun.position.set(-34, 34, 22);
     sun.castShadow = true;
-    sun.shadow.mapSize.width = 1024;
-    sun.shadow.mapSize.height = 1024;
-    sun.shadow.camera.near = 10;
-    sun.shadow.camera.far = 125;
-    sun.shadow.camera.left = -36;
-    sun.shadow.camera.right = 36;
-    sun.shadow.camera.top = 36;
-    sun.shadow.camera.bottom = -36;
-    sun.shadow.bias = -0.0005;
+    sun.shadow.mapSize.width = 2048;
+    sun.shadow.mapSize.height = 2048;
+    sun.shadow.camera.near = 8;
+    sun.shadow.camera.far = 120;
+    sun.shadow.camera.left = -31;
+    sun.shadow.camera.right = 31;
+    sun.shadow.camera.top = 31;
+    sun.shadow.camera.bottom = -31;
+    sun.shadow.bias = -0.0004;
+    sun.shadow.normalBias = 0.035;
     scene.add(sun);
 
-    var rimFill = new THREE.DirectionalLight(0xbad6f0, 0.36);
-    rimFill.position.set(28, 22, -24);
-    scene.add(rimFill);
+    // Subtle cool twilight bounce light from the opposite eastern horizon to separate shadowed stonework
+    var coolRim = new THREE.DirectionalLight(0x7ca4d4, 0.28);
+    coolRim.position.set(30, 18, -26);
+    scene.add(coolRim);
 
     // 5. Build Procedural Materials, Alpine Valley World & All 10 Medieval Buildings
     var mats = window.createDioramaMaterials();
@@ -103,9 +106,9 @@
     var smokeParticles = [];
     var smokeGeo = new THREE.SphereGeometry(0.32, 7, 7);
     var smokeBaseMat = new THREE.MeshBasicMaterial({
-      color: 0xe6e8ec,
+      color: 0xdcd8d0,
       transparent: true,
-      opacity: 0.48,
+      opacity: 0.42,
       depthWrite: false
     });
     animRefs.smokeOrigins.forEach(function (origin, oIdx) {
@@ -120,14 +123,13 @@
       }
     });
 
-    // 7. Projected 2D DOM Badges (strictly textContent + classList — zero innerHTML!)
+    // 7. Projected 2D DOM Badges (strictly textContent + classList — zero innerHTML)
     var badgeNodes = {};
     var buildingKeys = Object.keys(buildings);
 
     buildingKeys.forEach(function (key) {
       var info = buildings[key];
 
-      // Dark compact pill strictly BELOW building base
       var pill = document.createElement("div");
       pill.className = "building-pill";
       pill.dataset.buildingKey = key;
@@ -161,7 +163,6 @@
       });
       overlayLayer.appendChild(pill);
 
-      // Floating gold harvest bubble strictly ABOVE resource building roof peak
       var bubble = null;
       var bubbleText = null;
       if (info.resourceKey) {
@@ -215,8 +216,6 @@
     var activeTouches = new Map();
     var isDragging = false;
     var wasMultiTouch = false;
-    var downX = 0;
-    var downY = 0;
     var lastX = 0;
     var lastY = 0;
     var movedPx = 0;
@@ -247,8 +246,8 @@
       if (activeTouches.size === 1) {
         isDragging = true;
         wasMultiTouch = false;
-        downX = lastX = e.clientX;
-        downY = lastY = e.clientY;
+        lastX = e.clientX;
+        lastY = e.clientY;
         movedPx = 0;
       } else if (activeTouches.size === 2) {
         wasMultiTouch = true;
@@ -278,10 +277,9 @@
         lastX = e.clientX;
         lastY = e.clientY;
 
-        // Convert screen drag deltas into world XZ ground pan proportional to zoomScale
-        var panFactor = 0.056 * zoomScale;
+        var panFactor = 0.054 * zoomScale;
         var wx = -dx * panFactor;
-        var wz = -dy * panFactor * 1.18;
+        var wz = -dy * panFactor * 1.12;
         desiredTarget.x += wx;
         desiredTarget.z += wz;
         clampTarget(desiredTarget);
@@ -296,7 +294,6 @@
 
       if (activeTouches.size === 0) {
         if (!wasMultiTouch && movedPx < 14) {
-          // Single clean tap -> Raycast against all 10 3D buildings
           var rect = domEl.getBoundingClientRect();
           pointerNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
           pointerNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -320,7 +317,6 @@
     domEl.addEventListener("pointerup", onPointerEnd);
     domEl.addEventListener("pointercancel", onPointerEnd);
 
-    // Optional wheel zoom for desktop/emulator mouse testing
     domEl.addEventListener("wheel", function (e) {
       e.preventDefault();
       var factor = e.deltaY > 0 ? 1.09 : 0.91;
@@ -371,7 +367,7 @@
           }
 
           if (bInfo.highlightRing && bInfo.highlightRing.material) {
-            bInfo.highlightRing.material.opacity = isSelected ? 0.78 : (isUpgrading ? 0.42 : 0.0);
+            bInfo.highlightRing.material.opacity = isSelected ? 0.82 : (isUpgrading ? 0.44 : 0.0);
           }
 
           if (node.bubble && node.bubbleText) {
@@ -435,7 +431,7 @@
       renderer.setSize(w, h);
     });
 
-    // 11. Main 60fps Animation Loop (River Flow, Watermill, Chimney Smoke, Banners, Patrolling Guards, 2D Badges)
+    // 11. Main 60fps Animation Loop
     var clock = new THREE.Clock();
     var firstFrameDone = false;
 
@@ -444,7 +440,6 @@
       var dt = Math.min(clock.getDelta(), 0.05);
       var elapsed = clock.elapsedTime;
 
-      // Inertial glide after drag release
       if (!isDragging && (Math.abs(velX) > 0.001 || Math.abs(velZ) > 0.001)) {
         desiredTarget.x += velX;
         desiredTarget.z += velZ;
@@ -453,29 +448,24 @@
         velZ *= 0.90;
       }
 
-      // Smooth damped camera tracking
       target.lerp(desiredTarget, Math.min(1, dt * 11));
       zoomScale += (desiredZoom - zoomScale) * Math.min(1, dt * 10);
       applyCamera();
 
-      // Animate cerulean river water flowing downstream
       if (mats.riverTexture) {
         mats.riverTexture.offset.y -= dt * 0.42;
       }
 
-      // Spin Farmstead wooden watermill wheel continuously
       if (animRefs.watermillWheel) {
         animRefs.watermillWheel.rotation.x -= dt * 1.45;
       }
 
-      // Shimmer circular courtyard fountain water jet
       if (animRefs.fountainJet) {
         var pulse = 0.88 + Math.sin(elapsed * 6.5) * 0.14;
         animRefs.fountainJet.scale.set(1.0, pulse, 1.0);
         animRefs.fountainJet.rotation.y += dt * 1.8;
       }
 
-      // Rising translucent chimney smoke puffs
       for (var s = 0; s < smokeParticles.length; s++) {
         var sp = smokeParticles[s];
         var cycle = (elapsed * 0.28 + sp.phase) % 1.0;
@@ -486,16 +476,14 @@
         );
         var sc = 0.55 + cycle * 2.1;
         sp.mesh.scale.set(sc, sc * 0.85, sc);
-        sp.mesh.material.opacity = (1.0 - cycle) * 0.44;
+        sp.mesh.material.opacity = (1.0 - cycle) * 0.40;
       }
 
-      // Gentle breeze banner sway
       for (var b = 0; b < animRefs.banners.length; b++) {
         var bn = animRefs.banners[b];
         bn.rotation.y = Math.sin(elapsed * 2.6 + (bn.userData.phase || 0)) * 0.24;
       }
 
-      // Miniature armored guards patrolling wall battlements & eastern stone bridge
       for (var g = 0; g < animRefs.guards.length; g++) {
         var gd = animRefs.guards[g];
         var rawT = (elapsed * gd.speed + gd.offset) % 2.0;
@@ -507,10 +495,8 @@
         gd.mesh.lookAt(targetPt.x, gd.mesh.position.y, targetPt.z);
       }
 
-      // Render 3D diorama
       renderer.render(scene, camera);
 
-      // Synchronize non-overlapping 2D projected pills (below base) & gold collect bubbles (above peak)
       var w = window.innerWidth;
       var h = window.innerHeight;
       for (var k = 0; k < buildingKeys.length; k++) {

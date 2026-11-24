@@ -13,9 +13,18 @@
     return m;
   }
 
+  function addContactDecal(parent, w, d, x, y, z, mat, ry) {
+    var m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat);
+    m.rotation.x = -Math.PI / 2;
+    if (ry) m.rotation.z = -ry;
+    m.position.set(x, y, z);
+    m.renderOrder = 2;
+    parent.add(m);
+    return m;
+  }
+
   // Sculpt rolling alpine valley hills outside the fortress while keeping courtyard & estates flat
   function terrainHeight(x, z) {
-    // Keep inner fortress & main valley estates smoothly leveled around y=0
     var inCore = Math.abs(x) < 22 && Math.abs(z) < 24;
     if (inCore) return 0;
     var dx = Math.max(0, Math.abs(x) - 21);
@@ -23,7 +32,6 @@
     var dist = Math.sqrt(dx * dx + dz * dz);
     var blend = Math.min(1, dist / 24);
     var hill = (Math.sin(x * 0.08) * Math.cos(z * 0.07) * 3.4 + Math.sin((x + z) * 0.05) * 2.6 + dist * 0.16) * blend;
-    // Slight dip along eastern river channel
     var riverX = 14.5 + Math.sin(z * 0.14) * 2.2;
     var rDist = Math.abs(x - riverX);
     if (rDist < 4.0) hill *= rDist / 4.0;
@@ -34,7 +42,7 @@
     var worldGroup = new THREE.Group();
     scene.add(worldGroup);
 
-    // 1. Sculpted Green Alpine Valley Terrain
+    // 1. Sculpted Rich Alpine Valley Terrain
     var gGeo = new THREE.PlaneGeometry(180, 180, 72, 72);
     gGeo.rotateX(-Math.PI / 2);
     var pos = gGeo.attributes.position;
@@ -48,7 +56,7 @@
     terrain.receiveShadow = true;
     worldGroup.add(terrain);
 
-    // 2. Warm Ochre-Dirt & Grass Inner Courtyard Floor (matches reference photo!)
+    // 2. Warm Packed-Earth Inner Courtyard Floor
     var yardShape = new THREE.Shape();
     yardShape.moveTo(-11.5, -18.5);
     yardShape.lineTo(10.5, -18.5);
@@ -62,11 +70,24 @@
     var yardGeo = new THREE.ShapeGeometry(yardShape);
     yardGeo.rotateX(-Math.PI / 2);
     var yardMesh = new THREE.Mesh(yardGeo, mats.courtyardDirt);
-    yardMesh.position.y = 0.05;
+    yardMesh.position.y = 0.04;
     yardMesh.receiveShadow = true;
     worldGroup.add(yardMesh);
 
-    // 3. Winding Ochre Dirt Footpath hugging western outer wall + paths to outer estates
+    // 2B. Weathered Cobblestone Plazas around Obsidian Keep, Fountain & Central Courtyard Square
+    function addCobbleDisc(x, z, rx, rz, yElev) {
+      var disc = new THREE.Mesh(new THREE.CircleGeometry(1, 28), mats.cobblePlaza);
+      disc.rotation.x = -Math.PI / 2;
+      disc.scale.set(rx, rz, 1);
+      disc.position.set(x, yElev || 0.065, z);
+      disc.receiveShadow = true;
+      worldGroup.add(disc);
+    }
+    addCobbleDisc(0.0, -14.8, 6.2, 5.4, 0.065);   // Grand Obsidian Keep forecourt plaza
+    addCobbleDisc(-3.2, -5.8, 3.6, 3.4, 0.068);   // Circular Fountain cobblestone square
+    addCobbleDisc(-0.2, 3.6, 4.6, 5.2, 0.062);    // Central Market & Armory cobbled yard
+
+    // 3. Winding Dirt Pathways (Inner Courtyard Network + Outer Valley Roads)
     function buildFlatRibbon(points, width, yElev, mat) {
       var curve = new THREE.CatmullRomCurve3(points.map(function (p) { return new THREE.Vector3(p[0], yElev, p[1]); }));
       var samples = 44;
@@ -101,51 +122,59 @@
       return m;
     }
 
+    // Inner courtyard cobblestone/worn paths linking Keep -> Fountain -> Barracks -> Stables -> Siege -> East Gate
+    buildFlatRibbon([[0.0, -11.2], [-1.8, -7.2], [-2.0, -1.2], [-0.4, 4.0], [-2.8, 10.2]], 1.85, 0.072, mats.cobblePlaza);
+    buildFlatRibbon([[-4.8, -9.2], [-2.5, -5.6], [1.4, -5.8], [8.5, -5.4]], 1.65, 0.072, mats.cobblePlaza);
+    buildFlatRibbon([[-0.4, 4.0], [3.2, 7.2]], 1.45, 0.07, mats.cobblePlaza);
+
     // Western winding dirt footpath (matching reference left valley path)
     buildFlatRibbon([
       [-15.5, 25], [-16.0, 14], [-15.2, 4], [-16.8, -6], [-19.5, -14], [-15.5, -22]
-    ], 2.2, 0.06, mats.courtyardDirt);
-    // Eastern estate footpath beyond bridges
+    ], 2.3, 0.06, mats.courtyardDirt);
+    // Eastern estate footpath connecting Gold Mint, Quarry & Farmstead
     buildFlatRibbon([
-      [19.5, -4.5], [22.0, 3.0], [21.5, 13.5], [16.0, 18.0]
-    ], 1.9, 0.06, mats.courtyardDirt);
+      [18.2, -16.0], [20.2, -9.5], [19.8, -3.5], [22.0, 3.8], [21.2, 13.5], [15.5, 17.5]
+    ], 2.0, 0.06, mats.courtyardDirt);
 
-    // 4. Bright Cerulean Branching Eastern River / Moat (iconic feature of reference photo!)
+    // 4. Flowing Cerulean Branching Eastern River / Moat
     buildFlatRibbon([
       [15.5, -24], [14.8, -14], [12.8, -7.5], [11.2, -1.5], [13.2, 4.5], [15.0, 12.0], [18.5, 22.0], [24.0, 34.0]
     ], 2.7, 0.09, mats.riverWater);
-    // River island loop fork around the arched stone bridge
     buildFlatRibbon([
       [14.2, -10.5], [16.4, -5.0], [14.4, 0.2], [12.5, 3.5]
     ], 1.7, 0.085, mats.riverWater);
 
-    // Riverbank rocky stones along edges
-    var bankStones = [[11.5, -5.2], [15.4, -1.2], [10.8, 2.2], [14.6, 8.6], [17.2, 16.5], [-15.2, 17.5], [-18.2, 10.2]];
+    // Scattered mossy rocks & boulders along riverbanks and valley perimeter
+    var bankStones = [
+      [11.5, -5.2], [15.4, -1.2], [10.8, 2.2], [14.6, 8.6], [17.2, 16.5],
+      [-15.2, 17.5], [-18.2, 10.2], [-14.2, -14.8], [-17.6, -2.4], [13.0, -19.2],
+      [23.5, -11.0], [24.8, 7.4], [-9.2, 21.8], [5.4, 19.6], [-13.4, 12.2]
+    ];
     bankStones.forEach(function (bs, idx) {
-      var rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.65 + (idx % 3) * 0.28, 0), mats.rockGrey);
-      rock.position.set(bs[0], 0.35, bs[1]);
-      rock.scale.set(1.3, 0.65, 1.1);
+      var rx = bs[0];
+      var rz = bs[1];
+      var rSize = 0.52 + (idx % 3) * 0.26;
+      var rock = new THREE.Mesh(new THREE.DodecahedronGeometry(rSize, 0), mats.rockGrey);
+      rock.position.set(rx, terrainHeight(rx, rz) + rSize * 0.42, rz);
+      rock.scale.set(1.3, 0.62, 1.08);
       rock.rotation.y = idx * 1.1;
       worldGroup.add(enableShadow(rock));
+      addContactDecal(worldGroup, rSize * 2.9, rSize * 2.5, rx, terrainHeight(rx, rz) + 0.055, rz, mats.contactAoRound);
     });
 
     // 5. Two Iconic Eastern Bridges Spanning the Cerulean River
-    // Bridge A: Heavy Arched Grey Stone Bridge from East Barbican Gate -> Gold Mint Outpost
     var stoneBridge = new THREE.Group();
     stoneBridge.position.set(14.0, 0, -5.0);
     stoneBridge.rotation.y = -0.22;
     addBox(stoneBridge, 6.8, 0.45, 2.5, 0, 1.45, 0, mats.flagstoneTop);
     addBox(stoneBridge, 6.8, 0.65, 0.35, 0, 1.95, 1.1, mats.stoneWall);
     addBox(stoneBridge, 6.8, 0.65, 0.35, 0, 1.95, -1.1, mats.stoneWall);
-    // Stone bridge piers
     [-2.5, 0, 2.5].forEach(function (px) {
       addBox(stoneBridge, 1.0, 1.5, 2.4, px, 0.72, 0, mats.stoneWall);
     });
-    // Timber entrance ramp deck connecting gate to bridge
     addBox(stoneBridge, 2.2, 0.22, 2.1, -4.1, 1.38, 0, mats.timber);
     worldGroup.add(stoneBridge);
 
-    // Bridge B: Rustic Timber-and-Stone Footbridge downstream toward Farmstead
     var footBridge = new THREE.Group();
     footBridge.position.set(15.6, 0, 14.2);
     footBridge.rotation.y = 0.38;
@@ -157,7 +186,7 @@
     });
     worldGroup.add(footBridge);
 
-    // 6. Distant Misty Alpine Mountain Peaks framing Left & Right Horizon (Reference Backdrop!)
+    // 6. Distant Misty Alpine Mountain Peaks framing Left & Right Horizon
     function addAlpinePeak(x, z, r, h) {
       var g = new THREE.Group();
       var peak = new THREE.Mesh(new THREE.ConeGeometry(r, h, 7), mats.mountainFar);
@@ -176,7 +205,7 @@
     addAlpinePeak(54, -36, 22, 28);
     addAlpinePeak(-55, -26, 20, 22);
 
-    // 7. Jagged, Multi-Tiered Stone Curtain Walls, Corner Watchtowers & Ballistas
+    // 7. Jagged, Multi-Tiered Dark Granite Curtain Walls, Bastions & Contact AO Shadows
     var wallGroup = new THREE.Group();
     worldGroup.add(wallGroup);
 
@@ -188,43 +217,45 @@
       seg.position.set((x1 + x2) * 0.5, 0, (z1 + z2) * 0.5);
       seg.rotation.y = angle;
 
-      // Main masonry curtain wall
+      // Grounded dark ambient-occlusion contact shadow strip under curtain wall base
+      addContactDecal(seg, thick + 1.5, len + 0.8, 0, 0.08, 0, mats.contactAoRect, 0);
+
+      // Main weathered dark granite curtain wall
       addBox(seg, thick, height, len, 0, height * 0.5, 0, mats.stoneWall);
       // Flagstone parapet walkway on top
-      addBox(seg, thick + 0.16, 0.24, len + 0.1, 0, height + 0.08, 0, mats.flagstoneTop);
-      // Crenellated merlons along outer edge
+      addBox(seg, thick + 0.18, 0.24, len + 0.1, 0, height + 0.08, 0, mats.flagstoneTop);
+      // Crenellated merlons casting crisp crenellated shadows across the courtyard
       var merlonCount = Math.max(2, Math.floor(len / 1.45));
       for (var m = 0; m < merlonCount; m++) {
         var mz = -len * 0.5 + (m + 0.5) * (len / merlonCount);
-        addBox(seg, 0.36, 0.62, 0.78, thick * 0.5 - 0.12, height + 0.48, mz, mats.stoneWall);
+        addBox(seg, 0.38, 0.66, 0.8, thick * 0.5 - 0.12, height + 0.5, mz, mats.stoneWall);
       }
       wallGroup.add(seg);
     }
 
-    // Elongated, stepped fortress perimeter matching the reference silhouette!
     var wallHeight = 3.2;
     var wallPts = [
-      [-11.8, -18.5], [10.6, -18.5],     // North wall behind Keep
-      [10.6, -18.5], [10.6, -10.0],      // NE flank
-      [10.6, -10.0], [9.2, -5.0],        // East Barbican gate wall
-      [9.2, -5.0], [6.8, 0.5],           // Stepped inward mid-east wall
-      [6.8, 0.5], [9.6, 11.8],           // SE curtain wall along river
-      [9.6, 11.8], [3.5, 16.5],          // South-east angled rampart
-      [3.5, 16.5], [-1.2, 19.6],         // Southernmost apex
-      [-1.2, 19.6], [-8.8, 17.0],        // South-west foreground bastion
-      [-8.8, 17.0], [-10.8, 7.5],        // Lower-west stepped curtain
-      [-10.8, 7.5], [-12.2, -2.5],       // Mid-west curtain
-      [-12.2, -2.5], [-11.8, -18.5]      // Upper-west curtain
+      [-11.8, -18.5], [10.6, -18.5],
+      [10.6, -18.5], [10.6, -10.0],
+      [10.6, -10.0], [9.2, -5.0],
+      [9.2, -5.0], [6.8, 0.5],
+      [6.8, 0.5], [9.6, 11.8],
+      [9.6, 11.8], [3.5, 16.5],
+      [3.5, 16.5], [-1.2, 19.6],
+      [-1.2, 19.6], [-8.8, 17.0],
+      [-8.8, 17.0], [-10.8, 7.5],
+      [-10.8, 7.5], [-12.2, -2.5],
+      [-12.2, -2.5], [-11.8, -18.5]
     ];
     for (var w = 0; w < wallPts.length; w += 2) {
       buildWallSegment(wallPts[w][0], wallPts[w][1], wallPts[w + 1][0], wallPts[w + 1][1], wallHeight, 1.85);
     }
 
-    // Exterior stone staircases climbing up inside the eastern & southern walls (visible in reference!)
     function addStoneStairs(x, z, ry) {
       var st = new THREE.Group();
       st.position.set(x, 0, z);
       st.rotation.y = ry;
+      addContactDecal(st, 2.2, 4.2, 0, 0.08, 1.5, mats.contactAoRect, 0);
       for (var s = 0; s < 7; s++) {
         addBox(st, 1.3, 0.45 * (s + 1), 0.52, 0, 0.225 * (s + 1), s * 0.48, mats.flagstoneTop);
       }
@@ -233,18 +264,18 @@
     addStoneStairs(6.2, 2.2, 0.2);
     addStoneStairs(-9.4, -7.0, 0.0);
 
-    // Conical Slate-Roofed Round Corner Watchtowers & Square Crenellated Bastion Towers
     function addRoundTower(x, z, r, h, hasConicalRoof) {
       var t = new THREE.Group();
       t.position.set(x, 0, z);
-      var body = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.07, h, 18), mats.stoneKeep);
+      addContactDecal(t, r * 3.1, r * 3.1, 0, 0.082, 0, mats.contactAoRound);
+      var body = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.07, h, 20), mats.stoneKeep);
       body.position.y = h * 0.5;
       t.add(enableShadow(body));
-      var rim = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.14, r * 1.08, 0.65, 18), mats.stoneWall);
+      var rim = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.15, r * 1.08, 0.65, 20), mats.stoneWall);
       rim.position.y = h + 0.2;
       t.add(enableShadow(rim));
       if (hasConicalRoof) {
-        var cone = new THREE.Mesh(new THREE.ConeGeometry(r * 1.32, h * 0.42, 18), mats.turretRoof);
+        var cone = new THREE.Mesh(new THREE.ConeGeometry(r * 1.34, h * 0.42, 20), mats.turretRoof);
         cone.position.y = h + 0.5 + h * 0.21;
         t.add(enableShadow(cone));
       }
@@ -254,6 +285,7 @@
     function addSquareBastion(x, z, size, h, hasBallista) {
       var b = new THREE.Group();
       b.position.set(x, 0, z);
+      addContactDecal(b, size * 1.65, size * 1.65, 0, 0.082, 0, mats.contactAoRound);
       addBox(b, size, h, size, 0, h * 0.5, 0, mats.stoneWall);
       addBox(b, size + 0.3, 0.35, size + 0.3, 0, h + 0.1, 0, mats.flagstoneTop);
       var half = size * 0.5;
@@ -267,33 +299,30 @@
       wallGroup.add(b);
     }
 
-    // Iconic foreground west round turret with blue conical roof (front-left of reference!)
     addRoundTower(-10.8, 7.6, 2.05, 6.2, true);
-    // Iconic north-west tall conical slate-roofed lookout tower behind Alliance Hall
     addRoundTower(-5.5, -18.5, 1.65, 8.6, true);
-    // Small southern conical watch turret on foreground apex
     addRoundTower(-1.0, 19.6, 1.15, 4.4, true);
-    // Tall square crenellated NE watchtower right of Obsidian Keep
     addSquareBastion(7.4, -17.8, 2.5, 8.2, false);
-    // Corner & gatehouse crenellated square bastions (with mounted corner ballistas!)
     addSquareBastion(-11.8, -18.5, 3.0, 4.4, false);
     addSquareBastion(-12.2, -2.5, 2.8, 4.4, false);
     addSquareBastion(-8.8, 17.0, 3.2, 4.5, true);
     addSquareBastion(9.6, 11.8, 3.1, 4.8, true);
-    addSquareBastion(10.0, -7.8, 3.3, 5.4, false); // East Barbican Gatehouse tower
+    addSquareBastion(10.0, -7.8, 3.3, 5.4, false);
     addSquareBastion(10.6, -12.4, 2.8, 5.0, false);
 
-    // 8. Clustered 3D Alpine Pine/Fir Trees outside West & North valley slopes
+    // 8. Clustered Alpine Pine Trees & Low Courtyard/Perimeter Bushes
     function addPine(x, z, sc) {
       var p = new THREE.Group();
-      p.position.set(x, terrainHeight(x, z), z);
+      var ty = terrainHeight(x, z);
+      p.position.set(x, ty, z);
+      addContactDecal(p, 2.6 * sc, 2.6 * sc, 0, 0.055, 0, mats.contactAoRound);
       var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18 * sc, 0.24 * sc, 1.1 * sc, 6), mats.timber);
       trunk.position.y = 0.55 * sc;
       p.add(enableShadow(trunk));
       [
-        [1.5 * sc, 1.45 * sc, 1.8 * sc, mats.pineDark],
-        [2.4 * sc, 1.15 * sc, 1.6 * sc, mats.pineMid],
-        [3.2 * sc, 0.78 * sc, 1.35 * sc, mats.pineDark]
+        [1.5 * sc, 1.45 * sc, 1.85 * sc, mats.pineDark],
+        [2.4 * sc, 1.15 * sc, 1.62 * sc, mats.pineMid],
+        [3.2 * sc, 0.78 * sc, 1.38 * sc, mats.pineDark]
       ].forEach(function (tier) {
         var cone = new THREE.Mesh(new THREE.ConeGeometry(tier[1], tier[2], 7), tier[3]);
         cone.position.y = tier[0];
@@ -302,14 +331,41 @@
       worldGroup.add(p);
     }
 
+    function addBush(x, z, sc) {
+      var b = new THREE.Group();
+      var ty = terrainHeight(x, z);
+      b.position.set(x, ty, z);
+      addContactDecal(b, 1.6 * sc, 1.6 * sc, 0, 0.06, 0, mats.contactAoRound);
+      var m1 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.52 * sc, 0), mats.bushLeaf);
+      m1.position.set(0, 0.36 * sc, 0);
+      m1.scale.set(1.15, 0.82, 1.05);
+      b.add(enableShadow(m1));
+      var m2 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.36 * sc, 0), mats.pineMid);
+      m2.position.set(0.34 * sc, 0.28 * sc, 0.2 * sc);
+      b.add(enableShadow(m2));
+      worldGroup.add(b);
+    }
+
     var pines = [
-      [-23.5, -14.5, 1.2], [-25.2, -10.8, 1.35], [-22.0, -7.8, 1.1],
-      [-26.5, -6.0, 1.25], [-21.5, -17.5, 1.05], [-19.5, -22.0, 1.15],
-      [-23.0, 4.5, 1.1], [-24.5, 9.5, 1.2], [-20.5, 16.5, 1.0],
-      [25.5, -15.5, 1.15], [27.0, -10.0, 1.05], [26.5, 2.5, 1.1],
-      [-12.0, -25.0, 1.15], [14.0, -25.5, 1.2]
+      [-23.5, -14.5, 1.25], [-25.2, -10.8, 1.4], [-22.0, -7.8, 1.15],
+      [-26.5, -6.0, 1.3], [-21.5, -17.5, 1.1], [-19.5, -22.0, 1.2],
+      [-23.0, 4.5, 1.15], [-24.5, 9.5, 1.25], [-20.5, 16.5, 1.05],
+      [-17.2, 20.4, 1.1], [-13.5, 22.8, 1.0], [-21.8, -1.5, 1.2],
+      [25.5, -15.5, 1.2], [27.0, -10.0, 1.1], [26.5, 2.5, 1.15],
+      [25.8, 8.2, 1.2], [11.5, 20.5, 1.05], [7.8, 22.4, 1.15],
+      [-12.0, -25.0, 1.2], [-6.5, -24.5, 1.1], [14.0, -25.5, 1.25], [22.8, -22.5, 1.15]
     ];
     pines.forEach(function (pt) { addPine(pt[0], pt[1], pt[2]); });
+
+    var bushes = [
+      // Courtyard accents tucked near walls & fountain
+      [-4.6, -7.0, 0.85], [-2.1, -9.8, 0.78], [5.8, -12.6, 0.9], [4.8, 1.8, 0.82],
+      [-8.5, 5.2, 0.85], [-6.8, 14.8, 0.85], [1.4, 14.2, 0.82],
+      // Outer perimeter hedgerows & valley clusters
+      [-14.0, 11.2, 1.1], [-13.8, 1.5, 1.05], [-14.2, -9.0, 1.15], [-14.6, -18.0, 1.1],
+      [13.4, -13.2, 1.0], [17.8, 6.2, 1.1], [13.0, 16.4, 1.05], [-5.2, 21.2, 1.15]
+    ];
+    bushes.forEach(function (bu) { addBush(bu[0], bu[1], bu[2]); });
 
     return {
       worldGroup: worldGroup,

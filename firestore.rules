@@ -1,0 +1,647 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL PRIMITIVE HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isNonNegInt(val, maxVal) {
+      return val is int && val >= 0 && val <= maxVal;
+    }
+
+    function isBuildingLevel(val) {
+      return val is int && val >= 1 && val <= 25;
+    }
+
+    function isBoundedStringList(arr, maxLen) {
+      return arr is list && arr.size() <= maxLen && (arr.size() == 0 || arr[0] is string);
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    // --- ENTITY VALIDATION BLUEPRINTS ---
+
+    function isValidPlayerEmpire(data) {
+      return data.keys().hasAll([
+               'userId', 'lordName', 'food', 'timber', 'stone', 'gold', 'speedups',
+               'lastHarvestEpochMs', 'coordX', 'coordY', 'power', 'keepLevel',
+               'barracksLevel', 'stablesLevel', 'archeryLevel', 'siegeLevel',
+               'allianceHallLevel', 'farmLevel', 'lumberLevel', 'quarryLevel', 'mintLevel',
+               'infantry', 'cavalry', 'archers', 'siege', 'activeBuildKey',
+               'activeBuildEndsAtMs', 'activeTrainKey', 'activeTrainQty',
+               'activeTrainEndsAtMs', 'allianceId', 'allianceTag', 'allianceRole',
+               'honor', 'shieldUntilEpochMs', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'userId', 'lordName', 'food', 'timber', 'stone', 'gold', 'speedups',
+               'lastHarvestEpochMs', 'coordX', 'coordY', 'power', 'keepLevel',
+               'barracksLevel', 'stablesLevel', 'archeryLevel', 'siegeLevel',
+               'allianceHallLevel', 'farmLevel', 'lumberLevel', 'quarryLevel', 'mintLevel',
+               'infantry', 'cavalry', 'archers', 'siege', 'activeBuildKey',
+               'activeBuildEndsAtMs', 'activeTrainKey', 'activeTrainQty',
+               'activeTrainEndsAtMs', 'allianceId', 'allianceTag', 'allianceRole',
+               'honor', 'shieldUntilEpochMs', 'createdAt', 'updatedAt'
+             ]) &&
+             data.userId is string && data.userId == request.auth.uid && data.userId.size() <= 128 &&
+             data.lordName is string && data.lordName.size() >= 2 && data.lordName.size() <= 28 &&
+             isNonNegInt(data.food, 999999999) &&
+             isNonNegInt(data.timber, 999999999) &&
+             isNonNegInt(data.stone, 999999999) &&
+             isNonNegInt(data.gold, 999999999) &&
+             isNonNegInt(data.speedups, 99999) &&
+             isNonNegInt(data.lastHarvestEpochMs, 9999999999999) &&
+             isNonNegInt(data.coordX, 99) &&
+             isNonNegInt(data.coordY, 99) &&
+             isNonNegInt(data.power, 999999999) &&
+             isBuildingLevel(data.keepLevel) &&
+             isBuildingLevel(data.barracksLevel) &&
+             isBuildingLevel(data.stablesLevel) &&
+             isBuildingLevel(data.archeryLevel) &&
+             isBuildingLevel(data.siegeLevel) &&
+             isBuildingLevel(data.allianceHallLevel) &&
+             isBuildingLevel(data.farmLevel) &&
+             isBuildingLevel(data.lumberLevel) &&
+             isBuildingLevel(data.quarryLevel) &&
+             isBuildingLevel(data.mintLevel) &&
+             isNonNegInt(data.infantry, 9999999) &&
+             isNonNegInt(data.cavalry, 9999999) &&
+             isNonNegInt(data.archers, 9999999) &&
+             isNonNegInt(data.siege, 9999999) &&
+             data.activeBuildKey is string && data.activeBuildKey.size() <= 32 &&
+             isNonNegInt(data.activeBuildEndsAtMs, 9999999999999) &&
+             data.activeTrainKey is string && data.activeTrainKey.size() <= 32 &&
+             isNonNegInt(data.activeTrainQty, 50000) &&
+             isNonNegInt(data.activeTrainEndsAtMs, 9999999999999) &&
+             data.allianceId is string && data.allianceId.size() <= 128 &&
+             data.allianceTag is string && data.allianceTag.size() <= 6 &&
+             data.allianceRole in ['NONE', 'MEMBER', 'OFFICER', 'LEADER'] &&
+             isNonNegInt(data.honor, 999999999) &&
+             isNonNegInt(data.shieldUntilEpochMs, 9999999999999) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidKingdom(data) {
+      return data.keys().hasAll([
+               'ownerUid', 'realmId', 'publicVisible', 'lordName', 'keepLevel',
+               'power', 'garrisonPower', 'coordX', 'coordY', 'allianceId',
+               'allianceTag', 'shieldUntilEpochMs', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'ownerUid', 'realmId', 'publicVisible', 'lordName', 'keepLevel',
+               'power', 'garrisonPower', 'coordX', 'coordY', 'allianceId',
+               'allianceTag', 'shieldUntilEpochMs', 'createdAt', 'updatedAt'
+             ]) &&
+             data.ownerUid is string && data.ownerUid == request.auth.uid && data.ownerUid.size() <= 128 &&
+             data.realmId is string && data.realmId == 'realm_1' &&
+             data.publicVisible is bool && data.publicVisible == true &&
+             data.lordName is string && data.lordName.size() >= 2 && data.lordName.size() <= 28 &&
+             isBuildingLevel(data.keepLevel) &&
+             isNonNegInt(data.power, 999999999) &&
+             isNonNegInt(data.garrisonPower, 999999999) &&
+             isNonNegInt(data.coordX, 99) &&
+             isNonNegInt(data.coordY, 99) &&
+             data.allianceId is string && data.allianceId.size() <= 128 &&
+             data.allianceTag is string && data.allianceTag.size() <= 6 &&
+             isNonNegInt(data.shieldUntilEpochMs, 9999999999999) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidMarch(data) {
+      return data.keys().hasAll([
+               'ownerUid', 'realmId', 'ownerName', 'allianceId', 'allianceTag',
+               'marchType', 'targetType', 'targetId', 'targetName', 'fromX', 'fromY',
+               'toX', 'toY', 'troopPower', 'infantrySent', 'cavalrySent', 'archersSent',
+               'siegeSent', 'departedAtEpochMs', 'arrivesAtEpochMs', 'status',
+               'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'ownerUid', 'realmId', 'ownerName', 'allianceId', 'allianceTag',
+               'marchType', 'targetType', 'targetId', 'targetName', 'fromX', 'fromY',
+               'toX', 'toY', 'troopPower', 'infantrySent', 'cavalrySent', 'archersSent',
+               'siegeSent', 'departedAtEpochMs', 'arrivesAtEpochMs', 'status',
+               'createdAt', 'updatedAt'
+             ]) &&
+             data.ownerUid is string && data.ownerUid == request.auth.uid && data.ownerUid.size() <= 128 &&
+             data.realmId is string && data.realmId == 'realm_1' &&
+             data.ownerName is string && data.ownerName.size() >= 2 && data.ownerName.size() <= 28 &&
+             data.allianceId is string && data.allianceId.size() <= 128 &&
+             data.allianceTag is string && data.allianceTag.size() <= 6 &&
+             data.marchType in ['RAID', 'GATHER', 'RALLY'] &&
+             data.targetType in ['KINGDOM', 'BASTION', 'RESOURCE'] &&
+             data.targetId is string && data.targetId.size() >= 1 && data.targetId.size() <= 128 &&
+             data.targetName is string && data.targetName.size() >= 1 && data.targetName.size() <= 48 &&
+             isNonNegInt(data.fromX, 99) &&
+             isNonNegInt(data.fromY, 99) &&
+             isNonNegInt(data.toX, 99) &&
+             isNonNegInt(data.toY, 99) &&
+             data.troopPower is int && data.troopPower >= 1 && data.troopPower <= 999999999 &&
+             isNonNegInt(data.infantrySent, 9999999) &&
+             isNonNegInt(data.cavalrySent, 9999999) &&
+             isNonNegInt(data.archersSent, 9999999) &&
+             isNonNegInt(data.siegeSent, 9999999) &&
+             isNonNegInt(data.departedAtEpochMs, 9999999999999) &&
+             isNonNegInt(data.arrivesAtEpochMs, 9999999999999) &&
+             data.arrivesAtEpochMs >= data.departedAtEpochMs &&
+             data.status in ['MARCHING', 'RESOLVED', 'RECALLED'] &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidAlliance(data) {
+      return data.keys().hasAll([
+               'realmId', 'name', 'tag', 'motto', 'crestColor', 'leaderUid',
+               'officerUids', 'memberUids', 'memberCount', 'totalPower', 'openJoin',
+               'techMarchLevel', 'techYieldLevel', 'techAttackLevel', 'techDefenseLevel',
+               'techXp', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'realmId', 'name', 'tag', 'motto', 'crestColor', 'leaderUid',
+               'officerUids', 'memberUids', 'memberCount', 'totalPower', 'openJoin',
+               'techMarchLevel', 'techYieldLevel', 'techAttackLevel', 'techDefenseLevel',
+               'techXp', 'createdAt', 'updatedAt'
+             ]) &&
+             data.realmId is string && data.realmId == 'realm_1' &&
+             data.name is string && data.name.size() >= 3 && data.name.size() <= 32 &&
+             data.tag is string && data.tag.size() >= 2 && data.tag.size() <= 5 &&
+             data.motto is string && data.motto.size() <= 120 &&
+             data.crestColor in ['CRIMSON', 'GOLD', 'OBSIDIAN', 'EMERALD', 'ROYAL'] &&
+             data.leaderUid is string && data.leaderUid.size() >= 1 && data.leaderUid.size() <= 128 &&
+             isBoundedStringList(data.officerUids, 10) &&
+             isBoundedStringList(data.memberUids, 30) &&
+             data.memberUids.size() >= 1 &&
+             data.leaderUid in data.memberUids &&
+             data.memberCount is int && data.memberCount == data.memberUids.size() &&
+             isNonNegInt(data.totalPower, 9999999999) &&
+             data.openJoin is bool &&
+             isNonNegInt(data.techMarchLevel, 10) &&
+             isNonNegInt(data.techYieldLevel, 10) &&
+             isNonNegInt(data.techAttackLevel, 10) &&
+             isNonNegInt(data.techDefenseLevel, 10) &&
+             isNonNegInt(data.techXp, 999999999) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidAllianceMessage(data, allianceId) {
+      return data.keys().hasAll([
+               'allianceId', 'senderUid', 'senderName', 'senderRole',
+               'body', 'messageType', 'memberUids', 'createdAt'
+             ]) &&
+             data.keys().hasOnly([
+               'allianceId', 'senderUid', 'senderName', 'senderRole',
+               'body', 'messageType', 'memberUids', 'createdAt'
+             ]) &&
+             data.allianceId is string && data.allianceId == allianceId && data.allianceId.size() <= 128 &&
+             data.senderUid is string && data.senderUid == request.auth.uid && data.senderUid.size() <= 128 &&
+             data.senderName is string && data.senderName.size() >= 2 && data.senderName.size() <= 28 &&
+             data.senderRole in ['LEADER', 'OFFICER', 'MEMBER'] &&
+             data.body is string && data.body.size() >= 1 && data.body.size() <= 300 &&
+             data.messageType in ['CHAT', 'RALLY', 'AID', 'SYSTEM'] &&
+             isBoundedStringList(data.memberUids, 30) &&
+             data.senderUid in data.memberUids &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidAllianceRally(data, allianceId) {
+      return data.keys().hasAll([
+               'allianceId', 'leaderUid', 'leaderName', 'targetType', 'targetId',
+               'targetName', 'targetX', 'targetY', 'targetPower', 'totalPower',
+               'participantUids', 'participantSummary', 'launchAtEpochMs', 'status',
+               'memberUids', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'allianceId', 'leaderUid', 'leaderName', 'targetType', 'targetId',
+               'targetName', 'targetX', 'targetY', 'targetPower', 'totalPower',
+               'participantUids', 'participantSummary', 'launchAtEpochMs', 'status',
+               'memberUids', 'createdAt', 'updatedAt'
+             ]) &&
+             data.allianceId is string && data.allianceId == allianceId && data.allianceId.size() <= 128 &&
+             data.leaderUid is string && data.leaderUid.size() >= 1 && data.leaderUid.size() <= 128 &&
+             data.leaderName is string && data.leaderName.size() >= 2 && data.leaderName.size() <= 28 &&
+             data.targetType in ['KINGDOM', 'BASTION'] &&
+             data.targetId is string && data.targetId.size() >= 1 && data.targetId.size() <= 128 &&
+             data.targetName is string && data.targetName.size() >= 1 && data.targetName.size() <= 48 &&
+             isNonNegInt(data.targetX, 99) &&
+             isNonNegInt(data.targetY, 99) &&
+             data.targetPower is int && data.targetPower >= 1 && data.targetPower <= 999999999 &&
+             data.totalPower is int && data.totalPower >= 1 && data.totalPower <= 9999999999 &&
+             isBoundedStringList(data.participantUids, 30) &&
+             data.participantUids.size() >= 1 &&
+             data.participantSummary is string && data.participantSummary.size() <= 300 &&
+             isNonNegInt(data.launchAtEpochMs, 9999999999999) &&
+             data.status in ['GATHERING', 'LAUNCHED', 'RESOLVED', 'CANCELLED'] &&
+             isBoundedStringList(data.memberUids, 30) &&
+             data.memberUids.size() >= 1 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidAidRequest(data, allianceId) {
+      return data.keys().hasAll([
+               'allianceId', 'requesterUid', 'requesterName', 'resourceType',
+               'requestedAmount', 'fulfilledAmount', 'status', 'donorUids',
+               'memberUids', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'allianceId', 'requesterUid', 'requesterName', 'resourceType',
+               'requestedAmount', 'fulfilledAmount', 'status', 'donorUids',
+               'memberUids', 'createdAt', 'updatedAt'
+             ]) &&
+             data.allianceId is string && data.allianceId == allianceId && data.allianceId.size() <= 128 &&
+             data.requesterUid is string && data.requesterUid.size() >= 1 && data.requesterUid.size() <= 128 &&
+             data.requesterName is string && data.requesterName.size() >= 2 && data.requesterName.size() <= 28 &&
+             data.resourceType in ['FOOD', 'TIMBER', 'STONE', 'GOLD'] &&
+             data.requestedAmount is int && data.requestedAmount >= 100 && data.requestedAmount <= 50000 &&
+             data.fulfilledAmount is int && data.fulfilledAmount >= 0 && data.fulfilledAmount <= data.requestedAmount &&
+             data.status in ['OPEN', 'FULFILLED'] &&
+             isBoundedStringList(data.donorUids, 30) &&
+             isBoundedStringList(data.memberUids, 30) &&
+             data.memberUids.size() >= 1 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidAllianceInvite(data) {
+      return data.keys().hasAll([
+               'allianceId', 'allianceName', 'allianceTag', 'inviterUid', 'inviterName',
+               'targetUid', 'targetName', 'status', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'allianceId', 'allianceName', 'allianceTag', 'inviterUid', 'inviterName',
+               'targetUid', 'targetName', 'status', 'createdAt', 'updatedAt'
+             ]) &&
+             data.allianceId is string && data.allianceId.size() >= 1 && data.allianceId.size() <= 128 &&
+             data.allianceName is string && data.allianceName.size() >= 3 && data.allianceName.size() <= 32 &&
+             data.allianceTag is string && data.allianceTag.size() >= 2 && data.allianceTag.size() <= 5 &&
+             data.inviterUid is string && data.inviterUid.size() >= 1 && data.inviterUid.size() <= 128 &&
+             data.inviterName is string && data.inviterName.size() >= 2 && data.inviterName.size() <= 28 &&
+             data.targetUid is string && data.targetUid.size() >= 1 && data.targetUid.size() <= 128 &&
+             data.targetName is string && data.targetName.size() >= 2 && data.targetName.size() <= 28 &&
+             data.status in ['PENDING', 'ACCEPTED', 'DECLINED'] &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidBattleLog(data) {
+      return data.keys().hasAll([
+               'realmId', 'attackerUid', 'attackerName', 'attackerTag', 'defenderUid',
+               'defenderName', 'defenderTag', 'battleType', 'victory', 'attackerPower',
+               'defenderPower', 'troopsLost', 'lootFood', 'lootTimber', 'lootStone',
+               'lootGold', 'allianceId', 'createdAt'
+             ]) &&
+             data.keys().hasOnly([
+               'realmId', 'attackerUid', 'attackerName', 'attackerTag', 'defenderUid',
+               'defenderName', 'defenderTag', 'battleType', 'victory', 'attackerPower',
+               'defenderPower', 'troopsLost', 'lootFood', 'lootTimber', 'lootStone',
+               'lootGold', 'allianceId', 'createdAt'
+             ]) &&
+             data.realmId is string && data.realmId == 'realm_1' &&
+             data.attackerUid is string && data.attackerUid == request.auth.uid && data.attackerUid.size() <= 128 &&
+             data.attackerName is string && data.attackerName.size() >= 2 && data.attackerName.size() <= 28 &&
+             data.attackerTag is string && data.attackerTag.size() <= 6 &&
+             data.defenderUid is string && data.defenderUid.size() <= 128 &&
+             data.defenderName is string && data.defenderName.size() >= 1 && data.defenderName.size() <= 48 &&
+             data.defenderTag is string && data.defenderTag.size() <= 6 &&
+             data.battleType in ['RAID', 'RALLY', 'GATHER'] &&
+             data.victory is bool &&
+             isNonNegInt(data.attackerPower, 9999999999) &&
+             isNonNegInt(data.defenderPower, 9999999999) &&
+             isNonNegInt(data.troopsLost, 9999999) &&
+             isNonNegInt(data.lootFood, 99999999) &&
+             isNonNegInt(data.lootTimber, 99999999) &&
+             isNonNegInt(data.lootStone, 99999999) &&
+             isNonNegInt(data.lootGold, 99999999) &&
+             data.allianceId is string && data.allianceId.size() <= 128 &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    // --- COLLECTION RULES ---
+
+    // 1. Private Player Empire (Strict Owner-Only Isolation)
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow list: if isSignedIn() && existing().userId == request.auth.uid;
+
+      allow create: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       isValidPlayerEmpire(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       isValidPlayerEmpire(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         // Action: Economy, Construction, Training, Combat, or Profile Update
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'lordName', 'food', 'timber', 'stone', 'gold', 'speedups',
+                           'lastHarvestEpochMs', 'power', 'keepLevel', 'barracksLevel',
+                           'stablesLevel', 'archeryLevel', 'siegeLevel', 'allianceHallLevel',
+                           'farmLevel', 'lumberLevel', 'quarryLevel', 'mintLevel',
+                           'infantry', 'cavalry', 'archers', 'siege', 'activeBuildKey',
+                           'activeBuildEndsAtMs', 'activeTrainKey', 'activeTrainQty',
+                           'activeTrainEndsAtMs', 'honor', 'shieldUntilEpochMs', 'updatedAt'
+                         ]) ||
+                         // Action: Alliance Affiliation Update
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'allianceId', 'allianceTag', 'allianceRole', 'updatedAt'
+                         ])
+                       );
+
+      allow delete: if false;
+    }
+
+    // 2. Public Realm Strongholds (World Map & Leaderboard)
+    match /kingdoms/{userId} {
+      allow get: if isSignedIn() &&
+                    isValidId(userId) &&
+                    existing().realmId == 'realm_1' &&
+                    existing().publicVisible == true;
+      allow list: if isSignedIn() &&
+                     existing().realmId == 'realm_1' &&
+                     existing().publicVisible == true;
+
+      allow create: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       isValidKingdom(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       isValidKingdom(incoming()) &&
+                       incoming().ownerUid == existing().ownerUid &&
+                       incoming().realmId == existing().realmId &&
+                       incoming().publicVisible == existing().publicVisible &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         // Action: Sync Stronghold Stats & Shield
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'lordName', 'keepLevel', 'power', 'garrisonPower',
+                           'shieldUntilEpochMs', 'updatedAt'
+                         ]) ||
+                         // Action: Sync Alliance Tag
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'allianceId', 'allianceTag', 'updatedAt'
+                         ])
+                       );
+
+      allow delete: if false;
+    }
+
+    // 3. Live World Marches
+    match /marches/{marchId} {
+      allow get: if isSignedIn() && isValidId(marchId) && existing().realmId == 'realm_1';
+      allow list: if isSignedIn() && existing().realmId == 'realm_1';
+
+      allow create: if isSignedIn() &&
+                       isValidId(marchId) &&
+                       isValidMarch(incoming()) &&
+                       incoming().status == 'MARCHING';
+
+      allow update: if isSignedIn() &&
+                       isValidId(marchId) &&
+                       isValidMarch(incoming()) &&
+                       existing().ownerUid == request.auth.uid &&
+                       incoming().ownerUid == existing().ownerUid &&
+                       incoming().realmId == existing().realmId &&
+                       incoming().createdAt == existing().createdAt &&
+                       existing().status == 'MARCHING' &&
+                       incoming().status in ['RESOLVED', 'RECALLED'] &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+
+      allow delete: if isSignedIn() && isValidId(marchId) && existing().ownerUid == request.auth.uid;
+    }
+
+    // 4. Competitive Multiplayer Alliances
+    match /alliances/{allianceId} {
+      allow get: if isSignedIn() && isValidId(allianceId) && existing().realmId == 'realm_1';
+      allow list: if isSignedIn() && existing().realmId == 'realm_1';
+
+      allow create: if isSignedIn() &&
+                       isValidId(allianceId) &&
+                       isValidAlliance(incoming()) &&
+                       incoming().leaderUid == request.auth.uid &&
+                       incoming().memberUids.size() == 1 &&
+                       incoming().memberUids[0] == request.auth.uid &&
+                       incoming().officerUids.size() == 0;
+
+      allow update: if isSignedIn() &&
+                       isValidId(allianceId) &&
+                       isValidAlliance(incoming()) &&
+                       incoming().realmId == existing().realmId &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         // Action 1: Join Alliance (Open or Invited)
+                         (
+                           !(request.auth.uid in existing().memberUids) &&
+                           (request.auth.uid in incoming().memberUids) &&
+                           incoming().memberUids.size() == existing().memberUids.size() + 1 &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'memberCount', 'totalPower', 'updatedAt']) &&
+                           (
+                             existing().openJoin == true ||
+                             exists(/databases/$(database)/documents/allianceInvites/$(allianceId + '_' + request.auth.uid))
+                           )
+                         ) ||
+                         // Action 2: Leave Alliance (Non-Leader Member)
+                         (
+                           (request.auth.uid in existing().memberUids) &&
+                           existing().leaderUid != request.auth.uid &&
+                           !(request.auth.uid in incoming().memberUids) &&
+                           !(request.auth.uid in incoming().officerUids) &&
+                           incoming().memberUids.size() == existing().memberUids.size() - 1 &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'officerUids', 'memberCount', 'totalPower', 'updatedAt'])
+                         ) ||
+                         // Action 3: Member Donate Tech XP / Upgrade Shared Tech / Sync Power
+                         (
+                           (request.auth.uid in existing().memberUids) &&
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'techXp', 'techMarchLevel', 'techYieldLevel',
+                             'techAttackLevel', 'techDefenseLevel', 'totalPower', 'updatedAt'
+                           ])
+                         ) ||
+                         // Action 4: Leader or Officer Hierarchy & Alliance Settings Management
+                         (
+                           (existing().leaderUid == request.auth.uid || (request.auth.uid in existing().officerUids)) &&
+                           (incoming().leaderUid == existing().leaderUid || existing().leaderUid == request.auth.uid) &&
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'motto', 'openJoin', 'crestColor', 'officerUids',
+                             'memberUids', 'memberCount', 'totalPower', 'leaderUid', 'updatedAt'
+                           ])
+                         )
+                       );
+
+      allow delete: if isSignedIn() &&
+                       isValidId(allianceId) &&
+                       existing().leaderUid == request.auth.uid &&
+                       existing().memberUids.size() <= 1;
+
+      // 4a. Live Alliance Chat (Denormalized memberUids for fast zero-trust list queries)
+      match /messages/{messageId} {
+        allow get: if isSignedIn() && isValidId(allianceId) && isValidId(messageId) &&
+                      (request.auth.uid in existing().memberUids);
+        allow list: if isSignedIn() && (request.auth.uid in existing().memberUids);
+
+        allow create: if isSignedIn() &&
+                         isValidId(allianceId) &&
+                         isValidId(messageId) &&
+                         isValidAllianceMessage(incoming(), allianceId) &&
+                         exists(/databases/$(database)/documents/alliances/$(allianceId)) &&
+                         (request.auth.uid in get(/databases/$(database)/documents/alliances/$(allianceId)).data.memberUids);
+
+        allow update, delete: if false;
+      }
+
+      // 4b. Coordinated War Rallies
+      match /rallies/{rallyId} {
+        allow get: if isSignedIn() && isValidId(allianceId) && isValidId(rallyId) &&
+                      (request.auth.uid in existing().memberUids);
+        allow list: if isSignedIn() && (request.auth.uid in existing().memberUids);
+
+        allow create: if isSignedIn() &&
+                         isValidId(allianceId) &&
+                         isValidId(rallyId) &&
+                         isValidAllianceRally(incoming(), allianceId) &&
+                         incoming().leaderUid == request.auth.uid &&
+                         incoming().status == 'GATHERING' &&
+                         (request.auth.uid in incoming().participantUids) &&
+                         exists(/databases/$(database)/documents/alliances/$(allianceId)) &&
+                         (request.auth.uid in get(/databases/$(database)/documents/alliances/$(allianceId)).data.memberUids);
+
+        allow update: if isSignedIn() &&
+                         isValidId(allianceId) &&
+                         isValidId(rallyId) &&
+                         isValidAllianceRally(incoming(), allianceId) &&
+                         incoming().allianceId == existing().allianceId &&
+                         incoming().leaderUid == existing().leaderUid &&
+                         incoming().createdAt == existing().createdAt &&
+                         (request.auth.uid in existing().memberUids) &&
+                         existing().status in ['GATHERING', 'LAUNCHED'] &&
+                         (
+                           // Action: Member Joins Rally
+                           (
+                             existing().status == 'GATHERING' &&
+                             !(request.auth.uid in existing().participantUids) &&
+                             (request.auth.uid in incoming().participantUids) &&
+                             incoming().totalPower >= existing().totalPower &&
+                             incoming().diff(existing()).affectedKeys().hasOnly(['participantUids', 'participantSummary', 'totalPower', 'updatedAt'])
+                           ) ||
+                           // Action: Launch, Resolve, or Cancel Rally (Terminal State Lock)
+                           (
+                             (existing().leaderUid == request.auth.uid || (request.auth.uid in existing().participantUids)) &&
+                             incoming().status in ['LAUNCHED', 'RESOLVED', 'CANCELLED'] &&
+                             incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+                           )
+                         );
+
+        allow delete: if false;
+      }
+
+      // 4c. Alliance Resource Aid Requests
+      match /aidRequests/{requestId} {
+        allow get: if isSignedIn() && isValidId(allianceId) && isValidId(requestId) &&
+                      (request.auth.uid in existing().memberUids);
+        allow list: if isSignedIn() && (request.auth.uid in existing().memberUids);
+
+        allow create: if isSignedIn() &&
+                         isValidId(allianceId) &&
+                         isValidId(requestId) &&
+                         isValidAidRequest(incoming(), allianceId) &&
+                         incoming().requesterUid == request.auth.uid &&
+                         incoming().status == 'OPEN' &&
+                         incoming().fulfilledAmount == 0 &&
+                         exists(/databases/$(database)/documents/alliances/$(allianceId)) &&
+                         (request.auth.uid in get(/databases/$(database)/documents/alliances/$(allianceId)).data.memberUids);
+
+        allow update: if isSignedIn() &&
+                         isValidId(allianceId) &&
+                         isValidId(requestId) &&
+                         isValidAidRequest(incoming(), allianceId) &&
+                         incoming().allianceId == existing().allianceId &&
+                         incoming().requesterUid == existing().requesterUid &&
+                         incoming().resourceType == existing().resourceType &&
+                         incoming().requestedAmount == existing().requestedAmount &&
+                         incoming().createdAt == existing().createdAt &&
+                         (request.auth.uid in existing().memberUids) &&
+                         existing().status == 'OPEN' &&
+                         existing().requesterUid != request.auth.uid &&
+                         incoming().fulfilledAmount > existing().fulfilledAmount &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['fulfilledAmount', 'status', 'donorUids', 'updatedAt']);
+
+        allow delete: if false;
+      }
+    }
+
+    // 5. Alliance Invites (Role Hierarchy Invitations)
+    match /allianceInvites/{inviteId} {
+      allow get: if isSignedIn() && isValidId(inviteId) &&
+                    (existing().targetUid == request.auth.uid || existing().inviterUid == request.auth.uid);
+      allow list: if isSignedIn() &&
+                     (existing().targetUid == request.auth.uid || existing().inviterUid == request.auth.uid);
+
+      allow create: if isSignedIn() &&
+                       isValidId(inviteId) &&
+                       isValidAllianceInvite(incoming()) &&
+                       inviteId == incoming().allianceId + '_' + incoming().targetUid &&
+                       incoming().inviterUid == request.auth.uid &&
+                       incoming().status == 'PENDING' &&
+                       exists(/databases/$(database)/documents/alliances/$(incoming().allianceId)) &&
+                       (
+                         get(/databases/$(database)/documents/alliances/$(incoming().allianceId)).data.leaderUid == request.auth.uid ||
+                         (request.auth.uid in get(/databases/$(database)/documents/alliances/$(incoming().allianceId)).data.officerUids)
+                       );
+
+      allow update: if isSignedIn() &&
+                       isValidId(inviteId) &&
+                       isValidAllianceInvite(incoming()) &&
+                       existing().targetUid == request.auth.uid &&
+                       existing().status == 'PENDING' &&
+                       incoming().status in ['ACCEPTED', 'DECLINED'] &&
+                       incoming().allianceId == existing().allianceId &&
+                       incoming().inviterUid == existing().inviterUid &&
+                       incoming().targetUid == existing().targetUid &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+
+      allow delete: if isSignedIn() && isValidId(inviteId) &&
+                       (existing().targetUid == request.auth.uid || existing().inviterUid == request.auth.uid);
+    }
+
+    // 6. Immutable War Battle Logs
+    match /battleLogs/{logId} {
+      allow get: if isSignedIn() && isValidId(logId) && existing().realmId == 'realm_1';
+      allow list: if isSignedIn() && existing().realmId == 'realm_1';
+
+      allow create: if isSignedIn() &&
+                       isValidId(logId) &&
+                       isValidBattleLog(incoming());
+
+      allow update, delete: if false;
+    }
+  }
+}

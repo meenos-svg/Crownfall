@@ -1,0 +1,6 @@
+{
+  "name": "Crownfall",
+  "description": "A dark medieval fantasy strategy war game featuring real-time base building, resource management, live kingdom map marches and raids, and competitive multiplayer alliances.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

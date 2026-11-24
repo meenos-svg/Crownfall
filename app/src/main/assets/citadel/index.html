@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Crownfall Citadel 3D Diorama</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: linear-gradient(180deg, #98bddb 0%, #bfd6e6 38%, #677f45 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      touch-action: none;
+    }
+    #gl-root {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+    #gl-root canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    #overlay-layer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 5;
+    }
+    /* Compact dark obsidian pill strictly below each building base */
+    .building-pill {
+      position: absolute;
+      transform: translate(-50%, 0);
+      pointer-events: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(14, 15, 22, 0.88);
+      border: 1px solid rgba(212, 175, 55, 0.48);
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+      white-space: nowrap;
+      cursor: pointer;
+      transition: border-color 0.18s ease, transform 0.12s ease;
+    }
+    .building-pill.selected {
+      border-color: #f2d272;
+      box-shadow: 0 0 12px rgba(242, 210, 114, 0.55);
+    }
+    .building-pill.upgradeable {
+      border-color: rgba(46, 158, 107, 0.92);
+    }
+    .building-pill.upgrading {
+      border-color: #d4af37;
+    }
+    .pill-name {
+      color: #f4efe6;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .pill-level {
+      color: #f2d272;
+      font-size: 10px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .pill-up-arrow {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      background: rgba(46, 158, 107, 0.28);
+      color: #4ce39c;
+      font-size: 9px;
+      font-weight: 900;
+      line-height: 1;
+    }
+    .pill-build-icon {
+      color: #f2d272;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    /* Floating gold harvest bubble strictly above each resource building roof peak */
+    .harvest-bubble {
+      position: absolute;
+      transform: translate(-50%, -100%);
+      pointer-events: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #b8871c 0%, #e5be4b 52%, #fae084 100%);
+      border: 1.5px solid #fff3c2;
+      box-shadow: 0 4px 14px rgba(212, 175, 55, 0.65), 0 2px 4px rgba(0, 0, 0, 0.4);
+      color: #1a1304;
+      font-size: 11px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      cursor: pointer;
+      animation: bobFloat 1.9s ease-in-out infinite;
+    }
+    .harvest-bubble:active {
+      transform: translate(-50%, -95%) scale(0.92);
+    }
+    .harvest-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      border: 1px solid rgba(20, 16, 5, 0.45);
+      flex-shrink: 0;
+    }
+    @keyframes bobFloat {
+      0%, 100% { margin-top: 0px; }
+      50% { margin-top: -5px; }
+    }
+
+    /* Rising floating harvest feedback text */
+    .harvest-popup {
+      position: absolute;
+      transform: translate(-50%, -100%);
+      pointer-events: none;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(16, 17, 24, 0.9);
+      border: 1px solid #f2d272;
+      color: #fae084;
+      font-size: 12px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+      animation: floatUpFade 1.25s ease-out forwards;
+    }
+    @keyframes floatUpFade {
+      0% { opacity: 1; margin-top: -6px; transform: translate(-50%, -100%) scale(0.92); }
+      25% { opacity: 1; transform: translate(-50%, -100%) scale(1.06); }
+      100% { opacity: 0; margin-top: -64px; transform: translate(-50%, -100%) scale(1.0); }
+    }
+
+    #loader {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: linear-gradient(180deg, #1b2430 0%, #11161f 100%);
+      color: #f2d272;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      z-index: 20;
+      transition: opacity 0.35s ease;
+    }
+    #loader.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .spinner {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 3px solid rgba(212, 175, 55, 0.25);
+      border-top-color: #f2d272;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div id="gl-root"></div>
+  <div id="overlay-layer"></div>
+  <div id="loader">
+    <div class="spinner"></div>
+    <div id="loader-text">Sculpting 3D Citadel Diorama…</div>
+  </div>
+
+  <script>
+    (function loadThreeAndBoot() {
+      var urls = [
+        "https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js",
+        "https://unpkg.com/three@0.149.0/build/three.min.js"
+      ];
+      var idx = 0;
+      function loadNext() {
+        if (idx >= urls.length) {
+          var t = document.getElementById("loader-text");
+          if (t) t.textContent = "Unable to load 3D engine (offline)";
+          return;
+        }
+        var s = document.createElement("script");
+        s.src = urls[idx++];
+        s.async = false;
+        s.onload = function () {
+          loadLocalScripts();
+        };
+        s.onerror = loadNext;
+        document.head.appendChild(s);
+      }
+      function loadLocalScripts() {
+        var locals = [
+          "https://citadel.crownfall.local/assets/textures.js",
+          "https://citadel.crownfall.local/assets/world.js",
+          "https://citadel.crownfall.local/assets/buildings.js",
+          "https://citadel.crownfall.local/assets/app.js"
+        ];
+        var i = 0;
+        function nextLocal() {
+          if (i >= locals.length) {
+            if (window.initCitadelDiorama) window.initCitadelDiorama();
+            return;
+          }
+          var s = document.createElement("script");
+          s.src = locals[i++];
+          s.async = false;
+          s.onload = nextLocal;
+          document.head.appendChild(s);
+        }
+        nextLocal();
+      }
+      loadNext();
+    })();
+  </script>
+</body>
+</html>

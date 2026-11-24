@@ -1,0 +1,311 @@
+{
+  "entities": {
+    "PlayerEmpire": {
+      "title": "PlayerEmpire",
+      "description": "Private player citadel state including stockpiles, building levels, active build/training timers, army counts, and alliance membership.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID" },
+        "lordName": { "type": "string", "description": "Display title of the lord (2-28 chars)" },
+        "food": { "type": "integer" },
+        "timber": { "type": "integer" },
+        "stone": { "type": "integer" },
+        "gold": { "type": "integer" },
+        "speedups": { "type": "integer" },
+        "lastHarvestEpochMs": { "type": "integer" },
+        "coordX": { "type": "integer" },
+        "coordY": { "type": "integer" },
+        "power": { "type": "integer" },
+        "keepLevel": { "type": "integer" },
+        "barracksLevel": { "type": "integer" },
+        "stablesLevel": { "type": "integer" },
+        "archeryLevel": { "type": "integer" },
+        "siegeLevel": { "type": "integer" },
+        "allianceHallLevel": { "type": "integer" },
+        "farmLevel": { "type": "integer" },
+        "lumberLevel": { "type": "integer" },
+        "quarryLevel": { "type": "integer" },
+        "mintLevel": { "type": "integer" },
+        "infantry": { "type": "integer" },
+        "cavalry": { "type": "integer" },
+        "archers": { "type": "integer" },
+        "siege": { "type": "integer" },
+        "activeBuildKey": { "type": "string" },
+        "activeBuildEndsAtMs": { "type": "integer" },
+        "activeTrainKey": { "type": "string" },
+        "activeTrainQty": { "type": "integer" },
+        "activeTrainEndsAtMs": { "type": "integer" },
+        "allianceId": { "type": "string" },
+        "allianceTag": { "type": "string" },
+        "allianceRole": { "type": "string", "enum": ["NONE", "MEMBER", "OFFICER", "LEADER"] },
+        "honor": { "type": "integer" },
+        "shieldUntilEpochMs": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp written via FieldValue.serverTimestamp()" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp written via FieldValue.serverTimestamp()" }
+      },
+      "required": [
+        "userId", "lordName", "food", "timber", "stone", "gold", "speedups",
+        "lastHarvestEpochMs", "coordX", "coordY", "power", "keepLevel",
+        "barracksLevel", "stablesLevel", "archeryLevel", "siegeLevel",
+        "allianceHallLevel", "farmLevel", "lumberLevel", "quarryLevel", "mintLevel",
+        "infantry", "cavalry", "archers", "siege", "activeBuildKey",
+        "activeBuildEndsAtMs", "activeTrainKey", "activeTrainQty",
+        "activeTrainEndsAtMs", "allianceId", "allianceTag", "allianceRole",
+        "honor", "shieldUntilEpochMs", "createdAt", "updatedAt"
+      ]
+    },
+    "RealmKingdom": {
+      "title": "RealmKingdom",
+      "description": "Public stronghold projection for the live kingdom map and top lords power leaderboard.",
+      "type": "object",
+      "properties": {
+        "ownerUid": { "type": "string" },
+        "realmId": { "type": "string", "enum": ["realm_1"] },
+        "publicVisible": { "type": "boolean" },
+        "lordName": { "type": "string" },
+        "keepLevel": { "type": "integer" },
+        "power": { "type": "integer" },
+        "garrisonPower": { "type": "integer" },
+        "coordX": { "type": "integer" },
+        "coordY": { "type": "integer" },
+        "allianceId": { "type": "string" },
+        "allianceTag": { "type": "string" },
+        "shieldUntilEpochMs": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp written via FieldValue.serverTimestamp()" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp written via FieldValue.serverTimestamp()" }
+      },
+      "required": [
+        "ownerUid", "realmId", "publicVisible", "lordName", "keepLevel",
+        "power", "garrisonPower", "coordX", "coordY", "allianceId",
+        "allianceTag", "shieldUntilEpochMs", "createdAt", "updatedAt"
+      ]
+    },
+    "WorldMarch": {
+      "title": "WorldMarch",
+      "description": "Real-time timed march across the shared kingdom map for raids, gathering, or rally strikes.",
+      "type": "object",
+      "properties": {
+        "ownerUid": { "type": "string" },
+        "realmId": { "type": "string", "enum": ["realm_1"] },
+        "ownerName": { "type": "string" },
+        "allianceId": { "type": "string" },
+        "allianceTag": { "type": "string" },
+        "marchType": { "type": "string", "enum": ["RAID", "GATHER", "RALLY"] },
+        "targetType": { "type": "string", "enum": ["KINGDOM", "BASTION", "RESOURCE"] },
+        "targetId": { "type": "string" },
+        "targetName": { "type": "string" },
+        "fromX": { "type": "integer" },
+        "fromY": { "type": "integer" },
+        "toX": { "type": "integer" },
+        "toY": { "type": "integer" },
+        "troopPower": { "type": "integer" },
+        "infantrySent": { "type": "integer" },
+        "cavalrySent": { "type": "integer" },
+        "archersSent": { "type": "integer" },
+        "siegeSent": { "type": "integer" },
+        "departedAtEpochMs": { "type": "integer" },
+        "arrivesAtEpochMs": { "type": "integer" },
+        "status": { "type": "string", "enum": ["MARCHING", "RESOLVED", "RECALLED"] },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp written via FieldValue.serverTimestamp()" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp written via FieldValue.serverTimestamp()" }
+      },
+      "required": [
+        "ownerUid", "realmId", "ownerName", "allianceId", "allianceTag",
+        "marchType", "targetType", "targetId", "targetName", "fromX", "fromY",
+        "toX", "toY", "troopPower", "infantrySent", "cavalrySent", "archersSent",
+        "siegeSent", "departedAtEpochMs", "arrivesAtEpochMs", "status",
+        "createdAt", "updatedAt"
+      ]
+    },
+    "Alliance": {
+      "title": "Alliance",
+      "description": "Competitive multiplayer alliance with role hierarchy, member roster, combined power, and shared alliance technology buffs.",
+      "type": "object",
+      "properties": {
+        "realmId": { "type": "string", "enum": ["realm_1"] },
+        "name": { "type": "string" },
+        "tag": { "type": "string" },
+        "motto": { "type": "string" },
+        "crestColor": { "type": "string", "enum": ["CRIMSON", "GOLD", "OBSIDIAN", "EMERALD", "ROYAL"] },
+        "leaderUid": { "type": "string" },
+        "officerUids": { "type": "array" },
+        "memberUids": { "type": "array" },
+        "memberCount": { "type": "integer" },
+        "totalPower": { "type": "integer" },
+        "openJoin": { "type": "boolean" },
+        "techMarchLevel": { "type": "integer" },
+        "techYieldLevel": { "type": "integer" },
+        "techAttackLevel": { "type": "integer" },
+        "techDefenseLevel": { "type": "integer" },
+        "techXp": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp written via FieldValue.serverTimestamp()" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp written via FieldValue.serverTimestamp()" }
+      },
+      "required": [
+        "realmId", "name", "tag", "motto", "crestColor", "leaderUid",
+        "officerUids", "memberUids", "memberCount", "totalPower", "openJoin",
+        "techMarchLevel", "techYieldLevel", "techAttackLevel", "techDefenseLevel",
+        "techXp", "createdAt", "updatedAt"
+      ]
+    },
+    "AllianceMessage": {
+      "title": "AllianceMessage",
+      "description": "Real-time alliance chat message scoped to alliance members.",
+      "type": "object",
+      "properties": {
+        "allianceId": { "type": "string" },
+        "senderUid": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderRole": { "type": "string", "enum": ["LEADER", "OFFICER", "MEMBER"] },
+        "body": { "type": "string" },
+        "messageType": { "type": "string", "enum": ["CHAT", "RALLY", "AID", "SYSTEM"] },
+        "memberUids": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp written via FieldValue.serverTimestamp()" }
+      },
+      "required": ["allianceId", "senderUid", "senderName", "senderRole", "body", "messageType", "memberUids", "createdAt"]
+    },
+    "AllianceRally": {
+      "title": "AllianceRally",
+      "description": "Coordinated alliance war rally combining multiple members' armies against a stronghold or shadow bastion.",
+      "type": "object",
+      "properties": {
+        "allianceId": { "type": "string" },
+        "leaderUid": { "type": "string" },
+        "leaderName": { "type": "string" },
+        "targetType": { "type": "string", "enum": ["KINGDOM", "BASTION"] },
+        "targetId": { "type": "string" },
+        "targetName": { "type": "string" },
+        "targetX": { "type": "integer" },
+        "targetY": { "type": "integer" },
+        "targetPower": { "type": "integer" },
+        "totalPower": { "type": "integer" },
+        "participantUids": { "type": "array" },
+        "participantSummary": { "type": "string" },
+        "launchAtEpochMs": { "type": "integer" },
+        "status": { "type": "string", "enum": ["GATHERING", "LAUNCHED", "RESOLVED", "CANCELLED"] },
+        "memberUids": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp written via FieldValue.serverTimestamp()" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp written via FieldValue.serverTimestamp()" }
+      },
+      "required": [
+        "allianceId", "leaderUid", "leaderName", "targetType", "targetId",
+        "targetName", "targetX", "targetY", "targetPower", "totalPower",
+        "participantUids", "participantSummary", "launchAtEpochMs", "status",
+        "memberUids", "createdAt", "updatedAt"
+      ]
+    },
+    "ResourceAidRequest": {
+      "title": "ResourceAidRequest",
+      "description": "Alliance resource donation request allowing allies to contribute stockpiles.",
+      "type": "object",
+      "properties": {
+        "allianceId": { "type": "string" },
+        "requesterUid": { "type": "string" },
+        "requesterName": { "type": "string" },
+        "resourceType": { "type": "string", "enum": ["FOOD", "TIMBER", "STONE", "GOLD"] },
+        "requestedAmount": { "type": "integer" },
+        "fulfilledAmount": { "type": "integer" },
+        "status": { "type": "string", "enum": ["OPEN", "FULFILLED"] },
+        "donorUids": { "type": "array" },
+        "memberUids": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp written via FieldValue.serverTimestamp()" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp written via FieldValue.serverTimestamp()" }
+      },
+      "required": [
+        "allianceId", "requesterUid", "requesterName", "resourceType",
+        "requestedAmount", "fulfilledAmount", "status", "donorUids",
+        "memberUids", "createdAt", "updatedAt"
+      ]
+    },
+    "AllianceInvite": {
+      "title": "AllianceInvite",
+      "description": "Direct invitation sent by an alliance leader or officer to an unaffiliated lord.",
+      "type": "object",
+      "properties": {
+        "allianceId": { "type": "string" },
+        "allianceName": { "type": "string" },
+        "allianceTag": { "type": "string" },
+        "inviterUid": { "type": "string" },
+        "inviterName": { "type": "string" },
+        "targetUid": { "type": "string" },
+        "targetName": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "ACCEPTED", "DECLINED"] },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp written via FieldValue.serverTimestamp()" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp written via FieldValue.serverTimestamp()" }
+      },
+      "required": [
+        "allianceId", "allianceName", "allianceTag", "inviterUid", "inviterName",
+        "targetUid", "targetName", "status", "createdAt", "updatedAt"
+      ]
+    },
+    "BattleLog": {
+      "title": "BattleLog",
+      "description": "Immutable combat chronicle recording raids, rallies, and resource skirmishes.",
+      "type": "object",
+      "properties": {
+        "realmId": { "type": "string", "enum": ["realm_1"] },
+        "attackerUid": { "type": "string" },
+        "attackerName": { "type": "string" },
+        "attackerTag": { "type": "string" },
+        "defenderUid": { "type": "string" },
+        "defenderName": { "type": "string" },
+        "defenderTag": { "type": "string" },
+        "battleType": { "type": "string", "enum": ["RAID", "RALLY", "GATHER"] },
+        "victory": { "type": "boolean" },
+        "attackerPower": { "type": "integer" },
+        "defenderPower": { "type": "integer" },
+        "troopsLost": { "type": "integer" },
+        "lootFood": { "type": "integer" },
+        "lootTimber": { "type": "integer" },
+        "lootStone": { "type": "integer" },
+        "lootGold": { "type": "integer" },
+        "allianceId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp written via FieldValue.serverTimestamp()" }
+      },
+      "required": [
+        "realmId", "attackerUid", "attackerName", "attackerTag", "defenderUid",
+        "defenderName", "defenderTag", "battleType", "victory", "attackerPower",
+        "defenderPower", "troopsLost", "lootFood", "lootTimber", "lootStone",
+        "lootGold", "allianceId", "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/PlayerEmpire" },
+      "description": "Private player empire state isolated strictly to the owning user."
+    },
+    "/kingdoms/{userId}": {
+      "schema": { "$ref": "#/entities/RealmKingdom" },
+      "description": "Public stronghold location and power leaderboard profile in realm_1."
+    },
+    "/marches/{marchId}": {
+      "schema": { "$ref": "#/entities/WorldMarch" },
+      "description": "Live timed marches moving across the realm_1 kingdom map."
+    },
+    "/alliances/{allianceId}": {
+      "schema": { "$ref": "#/entities/Alliance" },
+      "description": "Multiplayer alliances with rosters, hierarchy, and shared technologies."
+    },
+    "/alliances/{allianceId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/AllianceMessage" },
+      "description": "Real-time alliance chat stream restricted to alliance members."
+    },
+    "/alliances/{allianceId}/rallies/{rallyId}": {
+      "schema": { "$ref": "#/entities/AllianceRally" },
+      "description": "Coordinated war rallies restricted to alliance members."
+    },
+    "/alliances/{allianceId}/aidRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/ResourceAidRequest" },
+      "description": "Resource aid requests restricted to alliance members."
+    },
+    "/allianceInvites/{inviteId}": {
+      "schema": { "$ref": "#/entities/AllianceInvite" },
+      "description": "Direct alliance invitations readable by inviter and target lord."
+    },
+    "/battleLogs/{logId}": {
+      "schema": { "$ref": "#/entities/BattleLog" },
+      "description": "Immutable battle reports for realm_1 war room and alliance logs."
+    }
+  }
+}

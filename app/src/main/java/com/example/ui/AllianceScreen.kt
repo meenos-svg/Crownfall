@@ -57,6 +57,9 @@ import com.example.data.Alliance
 import com.example.data.AllianceInvite
 import com.example.data.AllianceMessage
 import com.example.data.AllianceRally
+import com.example.data.AlliancePact
+import com.example.data.Stronghold
+import androidx.compose.material.icons.filled.Handshake
 import com.example.data.AllianceTechType
 import com.example.data.PlayerEmpire
 import com.example.data.RealmKingdom
@@ -100,7 +103,12 @@ fun AllianceScreen(
     onInviteLord: (RealmKingdom) -> Unit,
     onToggleOfficer: (String) -> Unit,
     onTransferLeadership: (String) -> Unit,
-    onKickMember: (String, Long) -> Unit
+    onKickMember: (String, Long) -> Unit,
+    pacts: List<AlliancePact> = emptyList(),
+    ownStronghold: Stronghold? = null,
+    onProposePact: (Alliance) -> Unit = {},
+    onRespondPact: (AlliancePact, Boolean) -> Unit = { _, _ -> },
+    onEndPact: (AlliancePact) -> Unit = {}
 ) {
     if (currentAlliance == null) {
         AllianceDirectoryView(
@@ -111,7 +119,7 @@ fun AllianceScreen(
             onDeclineInvite = onDeclineInvite
         )
     } else {
-        var subTab by remember { mutableIntStateOf(0) } // 0 = Chat, 1 = Rallies, 2 = Aid & Tech, 3 = Roster
+        var subTab by remember { mutableIntStateOf(0) } // 0 Chat, 1 Rallies, 2 Aid & Tech, 3 Roster, 4 Pacts
 
         Column(modifier = Modifier.fillMaxSize()) {
             // Compact Alliance Banner Header
@@ -179,6 +187,7 @@ fun AllianceScreen(
                 AllianceSubTabChip(subTab == 1, "Rallies", Icons.Filled.Whatshot, { subTab = 1 }, Modifier.weight(1f).testTag("alliance_tab_rallies"))
                 AllianceSubTabChip(subTab == 2, "Aid/Tech", Icons.Filled.Science, { subTab = 2 }, Modifier.weight(1f).testTag("alliance_tab_tech"))
                 AllianceSubTabChip(subTab == 3, "Roster", Icons.Filled.Groups, { subTab = 3 }, Modifier.weight(1f).testTag("alliance_tab_roster"))
+                AllianceSubTabChip(subTab == 4, "Pacts", Icons.Filled.Handshake, { subTab = 4 }, Modifier.weight(1f).testTag("alliance_tab_pacts"))
             }
 
             Spacer(Modifier.height(6.dp))
@@ -214,6 +223,16 @@ fun AllianceScreen(
                     onTransferLeadership = onTransferLeadership,
                     onKickMember = onKickMember,
                     onLeaveOrDisband = onLeaveOrDisband
+                )
+                4 -> AlliancePactsPanel(
+                    empire = empire,
+                    alliance = currentAlliance,
+                    allAlliances = allAlliances,
+                    pacts = pacts,
+                    ownStronghold = ownStronghold,
+                    onProposePact = onProposePact,
+                    onRespondPact = onRespondPact,
+                    onEndPact = onEndPact
                 )
             }
         }

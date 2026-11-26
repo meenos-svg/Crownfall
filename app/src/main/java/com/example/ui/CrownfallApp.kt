@@ -120,6 +120,8 @@ fun CrownfallMainShell(
     val messages by viewModel.allianceMessages.collectAsStateWithLifecycle()
     val rallies by viewModel.allianceRallies.collectAsStateWithLifecycle()
     val aidRequests by viewModel.allianceAidRequests.collectAsStateWithLifecycle()
+    val strongholds by viewModel.strongholds.collectAsStateWithLifecycle()
+    val pacts by viewModel.alliancePacts.collectAsStateWithLifecycle()
     val nowEpochMs by viewModel.nowEpochMs.collectAsStateWithLifecycle()
     val perResourceLastHarvestMs by viewModel.perResourceLastHarvestMs.collectAsStateWithLifecycle()
     val snackbarMsg by viewModel.snackbarMessage.collectAsStateWithLifecycle()
@@ -311,7 +313,15 @@ fun CrownfallMainShell(
                                         onDispatchMarch = viewModel::dispatchMarch,
                                         onRecallMarch = viewModel::recallMarch,
                                         onResolveMarch = viewModel::resolveMarchNow,
-                                        onLaunchRally = viewModel::launchAllianceRally
+                                        onLaunchRally = viewModel::launchAllianceRally,
+                                        strongholds = strongholds,
+                                        pactAllianceIds = pacts.filter { it.status == "ACTIVE" }
+                                            .map { it.otherAllianceId }.toSet(),
+                                        onFoundStronghold = viewModel::foundStronghold,
+                                        onReinforceStronghold = viewModel::reinforceStronghold,
+                                        onWithdrawGarrison = viewModel::withdrawGarrison,
+                                        onCallForAid = viewModel::callForAid,
+                                        onEndCallForAid = viewModel::endCallForAid
                                     )
 
                                     2 -> AllianceScreen(
@@ -338,7 +348,14 @@ fun CrownfallMainShell(
                                         onInviteLord = viewModel::inviteLord,
                                         onToggleOfficer = viewModel::toggleOfficer,
                                         onTransferLeadership = viewModel::transferLeadership,
-                                        onKickMember = viewModel::kickMember
+                                        onKickMember = viewModel::kickMember,
+                                        pacts = pacts,
+                                        ownStronghold = strongholds.firstOrNull {
+                                            emp.allianceId.isNotBlank() && it.allianceId == emp.allianceId
+                                        },
+                                        onProposePact = viewModel::proposePact,
+                                        onRespondPact = viewModel::respondPact,
+                                        onEndPact = viewModel::endPact
                                     )
 
                                     else -> WarRoomScreen(

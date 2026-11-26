@@ -144,6 +144,93 @@ fun DrawScope.drawBastion(c: Offset, s: Float) {
     drawPath(flag, Color(0xFFB82534))
 }
 
+/**
+ * An alliance stronghold: a star-shaped fortress with a great keep and the
+ * alliance's banner. A red ring pulses while it is under siege, and a golden
+ * beacon burns above it while it calls for aid. `walls` is 0..1 durability.
+ */
+fun DrawScope.drawStronghold(
+    c: Offset,
+    s: Float,
+    wallColor: Color,
+    bannerColor: Color,
+    walls: Float,
+    underSiege: Boolean,
+    callForAid: Boolean,
+    pulse: Float
+) {
+    groundShadow(c, s * 1.2f)
+    val x = c.x
+    val y = c.y
+    if (underSiege) {
+        val r = s * (1.7f + 0.35f * pulse)
+        drawCircle(Color(0xFFE03A4A).copy(alpha = 0.22f * (1f - pulse)), radius = r, center = c)
+        drawCircle(Color(0xFFE03A4A).copy(alpha = 0.8f * (1f - pulse)), radius = r, center = c, style = Stroke(s * 0.08f))
+    }
+
+    // star bastions: an eight-point wall around the keep
+    val star = Path()
+    for (i in 0 until 16) {
+        val a = Math.PI * 2 * i / 16 - Math.PI / 2
+        val rr = if (i % 2 == 0) 1.25f * s else 0.92f * s
+        val px = x + (Math.cos(a) * rr).toFloat()
+        val py = y + (Math.sin(a) * rr * 0.62f).toFloat() + 0.12f * s
+        if (i == 0) star.moveTo(px, py) else star.lineTo(px, py)
+    }
+    star.close()
+    drawPath(star, StoneMid)
+    drawPath(star, Color.Black.copy(alpha = 0.25f))
+    drawPath(star, Outline, style = Stroke(width = (s * 0.07f).coerceAtLeast(1.2f)))
+
+    // great keep
+    val keep = Path().apply {
+        rect(x - 0.42f * s, y - 0.95f * s, x + 0.42f * s, y + 0.30f * s)
+        rect(x - 0.62f * s, y - 0.55f * s, x - 0.36f * s, y + 0.30f * s)
+        rect(x + 0.36f * s, y - 0.55f * s, x + 0.62f * s, y + 0.30f * s)
+        val m = 0.14f * s
+        var bx = -0.42f
+        while (bx < 0.40f) {
+            rect(x + bx * s, y - 0.95f * s - m, x + (bx + 0.14f) * s, y - 0.95f * s)
+            bx += 0.28f
+        }
+    }
+    drawPath(keep, wallColor)
+    drawRect(Color.Black.copy(alpha = 0.22f), Offset(x + 0.18f * s, y - 0.95f * s), Size(0.24f * s, 1.25f * s))
+    drawPath(keep, Outline, style = Stroke(width = (s * 0.08f).coerceAtLeast(1.2f)))
+    drawRect(GateDark, Offset(x - 0.14f * s, y - 0.05f * s), Size(0.28f * s, 0.35f * s))
+    drawCircle(GateDark, radius = 0.14f * s, center = Offset(x, y - 0.05f * s))
+
+    // tall banner
+    drawLine(Outline, Offset(x, y - 1.05f * s), Offset(x, y - 1.85f * s), strokeWidth = (s * 0.07f).coerceAtLeast(1.2f))
+    val flag = Path().apply {
+        moveTo(x, y - 1.85f * s)
+        lineTo(x + 0.70f * s, y - 1.70f * s)
+        lineTo(x + 0.50f * s, y - 1.58f * s)
+        lineTo(x + 0.70f * s, y - 1.45f * s)
+        lineTo(x, y - 1.40f * s)
+        close()
+    }
+    drawPath(flag, bannerColor)
+    drawPath(flag, Outline, style = Stroke(width = (s * 0.05f).coerceAtLeast(1f)))
+
+    if (callForAid) {
+        val b = Offset(x - 0.55f * s, y - 1.75f * s)
+        drawCircle(Color(0xFFFFC94A).copy(alpha = 0.25f + 0.25f * pulse), radius = s * (0.45f + 0.15f * pulse), center = b)
+        drawCircle(Color(0xFFFFE08A), radius = s * 0.16f, center = b)
+    }
+
+    // wall strength bar
+    val barW = 1.9f * s
+    val barTop = y + 0.95f * s
+    drawRoundRect(Color.Black.copy(alpha = 0.6f), Offset(x - barW / 2, barTop), Size(barW, 0.16f * s), CornerRadius(0.08f * s))
+    drawRoundRect(
+        if (walls > 0.5f) Color(0xFF52D69A) else if (walls > 0.25f) Color(0xFFFFC94A) else Color(0xFFE03A4A),
+        Offset(x - barW / 2, barTop),
+        Size(barW * walls.coerceIn(0f, 1f), 0.16f * s),
+        CornerRadius(0.08f * s)
+    )
+}
+
 /** A resource site: a round badge with a small picture of what it produces. */
 fun DrawScope.drawResourceSite(c: Offset, s: Float, type: ResourceType?, accent: Color) {
     groundShadow(c, s * 0.8f)

@@ -73,6 +73,7 @@ import com.example.data.RealmKingdom
 import com.example.data.ResourceType
 import com.example.data.TroopType
 import com.example.data.WorldMarch
+import com.example.data.Stronghold
 import com.example.data.WorldNpcNode
 import com.example.data.formatCompact
 import com.example.data.formatCountdown
@@ -116,6 +117,14 @@ sealed interface MapTarget {
         override val power: Long = kingdom.garrisonPower
     }
 
+    data class StrongholdSite(val stronghold: Stronghold) : MapTarget {
+        override val id: String = stronghold.id
+        override val name: String = stronghold.displayName
+        override val coordX: Long = stronghold.coordX
+        override val coordY: Long = stronghold.coordY
+        override val power: Long = stronghold.defensePower(0L)
+    }
+
     data class NpcSite(val node: WorldNpcNode) : MapTarget {
         override val id: String = node.id
         override val name: String = node.name
@@ -154,7 +163,14 @@ fun RealmMapScreen(
         targetX: Long,
         targetY: Long,
         targetPower: Long
-    ) -> Unit
+    ) -> Unit,
+    strongholds: List<Stronghold> = emptyList(),
+    pactAllianceIds: Set<String> = emptySet(),
+    onFoundStronghold: (x: Long, y: Long) -> Unit = { _, _ -> },
+    onReinforceStronghold: (Stronghold, Long, Long, Long, Long) -> Unit = { _, _, _, _, _ -> },
+    onWithdrawGarrison: (Stronghold) -> Unit = {},
+    onCallForAid: (String) -> Unit = {},
+    onEndCallForAid: () -> Unit = {}
 ) {
     var panOffset by remember { mutableStateOf(Offset.Zero) }
     var zoomScale by remember { mutableFloatStateOf(1.15f) }
@@ -162,8 +178,13 @@ fun RealmMapScreen(
     var selectedTarget by remember { mutableStateOf<MapTarget?>(null) }
     val textMeasurer = rememberTextMeasurer()
 
-    val allTargets = remember(kingdoms) {
-        kingdoms.map { MapTarget.PlayerCastle(it) } +
+    var foundSpot by remember { mutableStateOf<Pair<Long, Long>?>(null) }
+    val ownStronghold = strongholds.firstOrNull { it.allianceId == empire.allianceId && empire.allianceId.isNotBlank() }
+    val canFound = empire.allianceRole == "LEADER" && ownStronghold == null
+
+    val allTargets = remember(kingdoms, strongholds) {
+        strongholds.map { MapTarget.StrongholdSite(it) } +
+            kingdoms.map { MapTarget.PlayerCastle(it) } +
             GameCatalog.worldNpcNodes.map { MapTarget.NpcSite(it) }
     }
 
@@ -178,6 +199,15 @@ fun RealmMapScreen(
 
     fun worldToScreen(wx: Long, wy: Long, size: IntSize): Offset =
         worldToScreenF(wx.toFloat(), wy.toFloat(), size)
+
+    fun screenToWorld(p: Offset, size: IntSize): Pair<Long, Long> {
+        val base = minOf(size.width, size.height).toFloat().coerceAtLeast(1f) * zoomScale
+        val cx = size.width / 2f + panOffset.x
+        val cy = size.height / 2f + panOffset.y
+        val wx = empire.coordX + (p.x - cx) / base * 60f
+        val wy = empire.coordY + (p.y - cy) / base * 60f
+        return wx.roundToLong() to wy.roundToLong()
+    }
 
     // Generated landscape for this realm (same realm id -> same map for every player).
     val realmId = kingdoms.firstOrNull { it.ownerUid == empire.userId }?.realmId
@@ -211,8 +241,12 @@ fun RealmMapScreen(
                         )
                     }
                 }
-                .pointerInput(allTargets, panOffset, zoomScale, canvasSize) {
-                    detectTapGestures { tap ->
+                .pointerInput(allTargets, panOffset, zoomScale, canvasSize, canFound) {
+                    detectTapGestures(
+                        onLongPress = { press ->
+                            if (canFound) foundSpot = screenToWorld(press, canvasSize)
+                        }
+                    ) { tap ->
                         val hit = allTargets.minByOrNull { target ->
                             val pos = worldToScreen(target.coordX, target.coordY, canvasSize)
                             hypot((pos.x - tap.x).toDouble(), (pos.y - tap.y).toDouble())
@@ -389,6 +423,36 @@ fun RealmMapScreen(
                 }
             }
 
+            // Alliance strongholds
+            val pulse = (nowEpochMs % 1600L) / 1600f
+            strongholds.forEach { sh ->
+                val pos = worldToScreen(sh.coordX, sh.coordY, canvasSize)
+                val isOurs = sh.allianceId == empire.allianceId && empire.allianceId.isNotBlank()
+                val isPact = sh.allianceId in pactAllianceIds
+                val wall = when {
+                    isOurs -> CrownGold
+                    isPact -> RoyalAzure
+                    else -> EmberCrimson
+                }
+                val shS = markerS * 1.35f
+                drawStronghold(
+                    c = pos,
+                    s = shS,
+                    wallColor = wall,
+                    bannerColor = if (isOurs || isPact) ParchmentIvory else ObsidianVoid,
+                    walls = sh.durability.toFloat() / sh.maxDurability.toFloat(),
+                    underSiege = sh.underSiege,
+                    callForAid = sh.callForAid,
+                    pulse = pulse
+                )
+                drawMapLabel(
+                    textMeasurer,
+                    sh.displayName,
+                    Offset(pos.x, pos.y + shS * 1.25f),
+                    if (isOurs) GildedHighlight else if (sh.callForAid) CrownGold else ParchmentIvory
+                )
+            }
+
             // Player castles (yours on top)
             kingdoms.sortedBy { it.ownerUid == empire.userId }.forEach { k ->
                 val pos = worldToScreen(k.coordX, k.coordY, canvasSize)
@@ -448,6 +512,20 @@ fun RealmMapScreen(
                     MapLegendDot(TimberMoss, "Nodes")
                 }
             }
+            if (canFound && empire.allianceId.isNotBlank()) {
+                Surface(
+                    color = BasaltSlate.copy(alpha = 0.9f),
+                    border = BorderStroke(1.dp, CrownGold.copy(alpha = 0.6f)),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        text = "Leader: long-press an open spot to raise your alliance stronghold",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = CrownGold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
+            }
 
             // Quick Target Selector Strip so players can also tap targets effortlessly
             LazyRow(
@@ -459,6 +537,7 @@ fun RealmMapScreen(
                     key = { it.id }
                 ) { target ->
                     val badgeColor = when (target) {
+                        is MapTarget.StrongholdSite -> if (target.stronghold.callForAid) CrownGold else RoyalAzure
                         is MapTarget.PlayerCastle -> EmberCrimson
                         is MapTarget.NpcSite -> if (target.node.targetType == "BASTION") WarCrimson else ArcaneEmerald
                     }
@@ -590,8 +669,41 @@ fun RealmMapScreen(
         }
     }
 
+    (selectedTarget as? MapTarget.StrongholdSite)?.let { site ->
+        val live = strongholds.firstOrNull { it.id == site.stronghold.id } ?: site.stronghold
+        StrongholdSheet(
+            stronghold = live,
+            empire = empire,
+            alliance = alliance,
+            isPactAlly = live.allianceId in pactAllianceIds,
+            onDismiss = { selectedTarget = null },
+            onReinforce = { i, c, a, sg -> onReinforceStronghold(live, i, c, a, sg); selectedTarget = null },
+            onWithdraw = { onWithdrawGarrison(live); selectedTarget = null },
+            onCallForAid = { msg -> onCallForAid(msg); selectedTarget = null },
+            onEndCallForAid = { onEndCallForAid(); selectedTarget = null },
+            onSiege = { i, c, a, sg ->
+                onDispatchMarch("RAID", "STRONGHOLD", live.id, live.displayName, live.coordX, live.coordY, i, c, a, sg)
+                selectedTarget = null
+            },
+            onRally = {
+                onLaunchRally("STRONGHOLD", live.id, live.displayName, live.coordX, live.coordY, live.defensePower(0L))
+                selectedTarget = null
+            }
+        )
+    }
+
+    foundSpot?.let { (fx, fy) ->
+        FoundStrongholdDialog(
+            x = fx,
+            y = fy,
+            empire = empire,
+            onConfirm = { onFoundStronghold(fx, fy); foundSpot = null },
+            onDismiss = { foundSpot = null }
+        )
+    }
+
     // Tactical Target Command Bottom Sheet
-    selectedTarget?.let { target ->
+    selectedTarget?.takeIf { it !is MapTarget.StrongholdSite }?.let { target ->
         val isOwnCastle = target.id == empire.userId
         val isResource = target is MapTarget.NpcSite && target.node.targetType == "RESOURCE"
         val isShielded = target is MapTarget.PlayerCastle && target.kingdom.shieldUntilEpochMs > nowEpochMs

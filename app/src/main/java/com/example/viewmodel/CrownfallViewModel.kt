@@ -20,6 +20,9 @@ import com.example.data.ResourceType
 import com.example.data.TroopType
 import com.example.data.UiState
 import com.example.data.WorldMarch
+import com.example.data.Stronghold
+import com.example.data.StrongholdRepository
+import com.example.data.AlliancePact
 import com.example.data.MarchStillMarching
 import com.example.data.WorldWarRepository
 import com.example.data.formatCompact
@@ -46,7 +49,8 @@ class CrownfallViewModel(
     private val worldWarRepository: WorldWarRepository,
     private val allianceRepository: AllianceRepository,
     val currentUserId: String,
-    initialDisplayName: String?
+    initialDisplayName: String?,
+    private val strongholdRepository: StrongholdRepository = StrongholdRepository()
 ) : ViewModel() {
 
     private val _nowEpochMs = MutableStateFlow(System.currentTimeMillis())
@@ -149,6 +153,24 @@ class CrownfallViewModel(
                 .catch { error ->
                     val root = unwrapFirestoreError(error)
                     Log.w(TAG, "Error observing rallies", root)
+                    emit(emptyList())
+                }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
+
+    val strongholds: StateFlow<List<Stronghold>> = strongholdRepository.observeStrongholds()
+        .catch { error ->
+            Log.w(TAG, "Error observing strongholds", error)
+            emit(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
+
+    val alliancePacts: StateFlow<List<AlliancePact>> = verifiedAllianceId
+        .flatMapLatest { aid ->
+            if (aid.isBlank()) flowOf(emptyList())
+            else strongholdRepository.observePacts(aid)
+                .catch { error ->
+                    Log.w(TAG, "Error observing pacts", error)
                     emit(emptyList())
                 }
         }
@@ -563,6 +585,71 @@ class CrownfallViewModel(
             empireRepository.activatePeaceShield(emp)
                 .onSuccess { postMessage("1-Hour Obsidian Peace Shield activated!") }
                 .onFailure { postMessage(it.localizedMessage ?: "Cannot activate Peace Shield.") }
+        }
+    }
+
+    // ------------------------------------------------------------------ strongholds & pacts
+
+    fun foundStronghold(x: Long, y: Long) {
+        runAction {
+            strongholdRepository.foundStronghold(x, y)
+                .onSuccess { postMessage("Stronghold raised at ($x, $y)! Send troops to garrison it.") }
+                .onFailure { postMessage(it.localizedMessage ?: "Could not found the stronghold.") }
+        }
+    }
+
+    fun reinforceStronghold(stronghold: Stronghold, infantry: Long, cavalry: Long, archers: Long, siege: Long) {
+        dispatchMarch(
+            "REINFORCE", "STRONGHOLD", stronghold.id, stronghold.displayName,
+            stronghold.coordX, stronghold.coordY, infantry, cavalry, archers, siege
+        )
+    }
+
+    fun withdrawGarrison(stronghold: Stronghold) {
+        runAction {
+            strongholdRepository.withdrawGarrison(stronghold)
+                .onSuccess { postMessage("Your garrison has marched home.") }
+                .onFailure { postMessage(it.localizedMessage ?: "Could not withdraw troops.") }
+        }
+    }
+
+    fun callForAid(message: String) {
+        runAction {
+            strongholdRepository.callForAid(message)
+                .onSuccess { postMessage("Call for aid sounded! Any kingdom can now send relief.") }
+                .onFailure { postMessage(it.localizedMessage ?: "Could not call for aid.") }
+        }
+    }
+
+    fun endCallForAid() {
+        runAction {
+            strongholdRepository.endCallForAid()
+                .onSuccess { postMessage("Call for aid lowered.") }
+                .onFailure { postMessage(it.localizedMessage ?: "Could not lower the call.") }
+        }
+    }
+
+    fun proposePact(alliance: Alliance) {
+        runAction {
+            strongholdRepository.proposePact(alliance.id)
+                .onSuccess { postMessage("Pact offered to [${alliance.tag}].") }
+                .onFailure { postMessage(it.localizedMessage ?: "Could not propose the pact.") }
+        }
+    }
+
+    fun respondPact(pact: AlliancePact, accept: Boolean) {
+        runAction {
+            strongholdRepository.respondPact(pact, accept)
+                .onSuccess { postMessage(if (accept) "Pact sealed with [${pact.otherTag}]!" else "Pact declined.") }
+                .onFailure { postMessage(it.localizedMessage ?: "Could not answer the pact.") }
+        }
+    }
+
+    fun endPact(pact: AlliancePact) {
+        runAction {
+            strongholdRepository.endPact(pact)
+                .onSuccess { postMessage("Pact with [${pact.otherTag}] ended.") }
+                .onFailure { postMessage(it.localizedMessage ?: "Could not end the pact.") }
         }
     }
 

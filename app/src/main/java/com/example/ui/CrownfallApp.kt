@@ -70,7 +70,6 @@ import com.example.ui.theme.ObsidianVoid
 import com.example.ui.theme.ParchmentIvory
 import com.example.ui.theme.WeatheredAsh
 import com.example.viewmodel.CrownfallViewModel
-import com.google.firebase.firestore.FirebaseFirestore
 
 private data class NavDest(
     val labelRes: Int,
@@ -100,15 +99,10 @@ fun CrownfallMainShell(
         key = currentUserId,
         factory = viewModelFactory {
             initializer {
-                val app = checkNotNull(this[APPLICATION_KEY]) {
-                    "APPLICATION_KEY missing from CreationExtras"
-                }
-                val databaseId = app.getString(R.string.firestore_database_id)
-                val db = FirebaseFirestore.getInstance(databaseId)
                 CrownfallViewModel(
-                    empireRepository = EmpireRepository(db),
-                    worldWarRepository = WorldWarRepository(db),
-                    allianceRepository = AllianceRepository(db),
+                    empireRepository = EmpireRepository(),
+                    worldWarRepository = WorldWarRepository(),
+                    allianceRepository = AllianceRepository(),
                     currentUserId = currentUserId,
                     initialDisplayName = initialDisplayName
                 )

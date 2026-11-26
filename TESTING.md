@@ -50,7 +50,7 @@ Most need a second Google account (a friend or a second phone).
 - [x] Pick a crest: it shows in the top bar with the Keep level badge
 - [ ] Pick Google: your Google photo shows
 - [x] The 10 painted portraits appear in the picker and look right in the top bar
-- [ ] Your photo (SQL part 17): pick a photo from the phone → it becomes your avatar; others see it on your castle
+- [x] Your photo (SQL part 17): pick a photo from the phone → it becomes your avatar; others see it on your castle
 - [ ] Tap another castle on the map: their avatar shows in the sheet
 
 ## Lord profiles (SQL part 16)

@@ -1,34 +1,243 @@
 package com.example.data
 
+import android.util.Log
+import com.google.firebase.Timestamp
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.Columns
+import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import java.util.Date
 import java.util.UUID
 
+/** Asks every polling flow (alliances, chat, aid, invites, own empire) to refresh now. */
+object GameSignals {
+    val refresh = MutableSharedFlow<Unit>(extraBufferCapacity = 8)
+    fun poke() { refresh.tryEmit(Unit) }
+}
+
+@Serializable
+private data class AllianceRow(
+    val id: String = "",
+    @SerialName("realm_id") val realmId: String = "",
+    val name: String = "",
+    val tag: String = "",
+    val motto: String = "",
+    @SerialName("crest_color") val crestColor: String = "CRIMSON",
+    @SerialName("leader_id") val leaderId: String = "",
+    @SerialName("open_join") val openJoin: Boolean = true,
+    @SerialName("member_count") val memberCount: Int = 0,
+    @SerialName("total_power") val totalPower: Long = 0,
+    @SerialName("tech_march_level") val techMarch: Int = 0,
+    @SerialName("tech_yield_level") val techYield: Int = 0,
+    @SerialName("tech_attack_level") val techAttack: Int = 0,
+    @SerialName("tech_defense_level") val techDefense: Int = 0,
+    @SerialName("tech_xp") val techXp: Long = 0
+)
+
+@Serializable
+private data class MemberRow(
+    val id: String = "",
+    @SerialName("alliance_id") val allianceId: String? = null,
+    @SerialName("alliance_role") val role: String = "NONE"
+)
+
+@Serializable
+private data class MessageRow(
+    val id: String = "",
+    @SerialName("alliance_id") val allianceId: String = "",
+    @SerialName("sender_id") val senderId: String? = null,
+    @SerialName("sender_name") val senderName: String = "",
+    @SerialName("sender_role") val senderRole: String = "MEMBER",
+    val body: String = "",
+    @SerialName("message_type") val messageType: String = "CHAT",
+    @SerialName("created_at") val createdAt: String? = null
+)
+
+@Serializable
+private data class NameOnly(val username: String = "")
+
+@Serializable
+private data class AidRow(
+    val id: String = "",
+    @SerialName("alliance_id") val allianceId: String = "",
+    @SerialName("requester_id") val requesterId: String = "",
+    @SerialName("resource_type") val resourceType: String = "FOOD",
+    @SerialName("requested_amount") val requested: Long = 0,
+    @SerialName("fulfilled_amount") val fulfilled: Long = 0,
+    val status: String = "OPEN",
+    @SerialName("donor_ids") val donorIds: List<String> = emptyList(),
+    @SerialName("created_at") val createdAt: String? = null,
+    val players: NameOnly? = null
+)
+
+@Serializable
+private data class AllianceNameTag(val name: String = "", val tag: String = "")
+
+@Serializable
+private data class InviteRow(
+    val id: String = "",
+    @SerialName("alliance_id") val allianceId: String = "",
+    @SerialName("inviter_id") val inviterId: String = "",
+    @SerialName("target_id") val targetId: String = "",
+    val status: String = "PENDING",
+    @SerialName("created_at") val createdAt: String? = null,
+    val alliances: AllianceNameTag? = null,
+    val inviter: NameOnly? = null
+)
+
+private fun String?.toTimestamp(): Timestamp? =
+    this.toEpochMs().takeIf { it > 0 }?.let { Timestamp(Date(it)) }
+
+/**
+ * Alliances live in Supabase. Every change goes through a server function
+ * (part 5 SQL) that checks rank and rules; the app only reads and polls.
+ * War rallies are still kept on this device until marches and battles move
+ * to the server.
+ */
 class AllianceRepository(
-    private val db: Any? = null,
-    private val auth: Any? = null
+    @Suppress("unused") private val db: Any? = null,
+    @Suppress("unused") private val auth: Any? = null
 ) {
-    private val alliancesFlow = MutableStateFlow<List<Alliance>>(emptyList())
-    private val messagesByAlliance = MutableStateFlow<Map<String, List<AllianceMessage>>>(emptyMap())
+    private val client get() = SupabaseProvider.client
+    private val myUid: String get() = client.auth.currentUserOrNull()?.id.orEmpty()
+
     private val ralliesByAlliance = MutableStateFlow<Map<String, List<AllianceRally>>>(emptyMap())
-    private val aidByAlliance = MutableStateFlow<Map<String, List<ResourceAidRequest>>>(emptyMap())
-    private val invitesFlow = MutableStateFlow<List<AllianceInvite>>(emptyList())
 
-    fun observeAlliances(): Flow<List<Alliance>> =
-        alliancesFlow.map { list -> list.sortedByDescending { it.totalPower } }
+    /** Fetch immediately, then again every [intervalMs] or whenever something pokes [GameSignals]. */
+    private fun <T> polled(intervalMs: Long, fetch: suspend () -> T): Flow<T> = channelFlow {
+        while (isActive) {
+            runCatching { fetch() }
+                .onSuccess { send(it) }
+                .onFailure { Log.w(TAG, "Alliance refresh failed", it) }
+            withTimeoutOrNull(intervalMs) { GameSignals.refresh.first() }
+        }
+    }
 
-    fun observeMessages(allianceId: String, userId: String): Flow<List<AllianceMessage>> =
-        messagesByAlliance.map { map -> map[allianceId].orEmpty() }
+    private suspend fun rpc(name: String, params: JsonObject = JsonObject(emptyMap())) =
+        client.postgrest.rpc(name, params)
+
+    private fun afterChange() = GameSignals.poke()
+
+    // ------------------------------------------------------------------ reads
+
+    fun observeAlliances(): Flow<List<Alliance>> = polled(15_000L) {
+        val rows = client.from("alliances").select {
+            order("total_power", Order.DESCENDING)
+            limit(100)
+        }.decodeList<AllianceRow>()
+        val members = client.from("players").select(Columns.list("id", "alliance_id", "alliance_role")) {
+            filter { neq("alliance_role", "NONE") }
+        }.decodeList<MemberRow>()
+        val byAlliance = members.groupBy { it.allianceId.orEmpty() }
+        rows.map { r ->
+            val mine = byAlliance[r.id].orEmpty()
+            Alliance(
+                id = r.id,
+                realmId = r.realmId,
+                name = r.name,
+                tag = r.tag,
+                motto = r.motto,
+                crestColor = r.crestColor,
+                leaderUid = r.leaderId,
+                officerUids = mine.filter { it.role == "OFFICER" }.map { it.id },
+                memberUids = mine.map { it.id },
+                memberCount = mine.size.toLong(),
+                totalPower = r.totalPower,
+                openJoin = r.openJoin,
+                techMarchLevel = r.techMarch.toLong(),
+                techYieldLevel = r.techYield.toLong(),
+                techAttackLevel = r.techAttack.toLong(),
+                techDefenseLevel = r.techDefense.toLong(),
+                techXp = r.techXp
+            )
+        }
+    }
+
+    fun observeMessages(allianceId: String, userId: String): Flow<List<AllianceMessage>> = polled(5_000L) {
+        client.from("alliance_messages").select {
+            filter { eq("alliance_id", allianceId) }
+            order("created_at", Order.DESCENDING)
+            limit(80)
+        }.decodeList<MessageRow>().reversed().map { m ->
+            AllianceMessage(
+                id = m.id,
+                allianceId = m.allianceId,
+                senderUid = m.senderId.orEmpty(),
+                senderName = m.senderName,
+                senderRole = m.senderRole,
+                body = m.body,
+                messageType = m.messageType,
+                createdAt = m.createdAt.toTimestamp()
+            )
+        }
+    }
 
     fun observeRallies(allianceId: String, userId: String): Flow<List<AllianceRally>> =
         ralliesByAlliance.map { map -> map[allianceId].orEmpty() }
 
-    fun observeAidRequests(allianceId: String, userId: String): Flow<List<ResourceAidRequest>> =
-        aidByAlliance.map { map -> map[allianceId].orEmpty() }
+    fun observeAidRequests(allianceId: String, userId: String): Flow<List<ResourceAidRequest>> = polled(8_000L) {
+        client.from("aid_requests").select(Columns.raw("*, players(username)")) {
+            filter {
+                eq("alliance_id", allianceId)
+                eq("status", "OPEN")
+            }
+            order("created_at", Order.DESCENDING)
+        }.decodeList<AidRow>().map { a ->
+            ResourceAidRequest(
+                id = a.id,
+                allianceId = a.allianceId,
+                requesterUid = a.requesterId,
+                requesterName = a.players?.username.orEmpty(),
+                resourceType = a.resourceType,
+                requestedAmount = a.requested,
+                fulfilledAmount = a.fulfilled,
+                status = a.status,
+                donorUids = a.donorIds,
+                createdAt = a.createdAt.toTimestamp()
+            )
+        }
+    }
 
-    fun observeMyInvites(userId: String): Flow<List<AllianceInvite>> =
-        invitesFlow.map { list -> list.filter { it.status == "PENDING" } }
+    fun observeMyInvites(userId: String): Flow<List<AllianceInvite>> = polled(15_000L) {
+        val me = myUid
+        if (me.isBlank()) return@polled emptyList()
+        client.from("alliance_invites").select(
+            Columns.raw("*, alliances(name, tag), inviter:players!alliance_invites_inviter_id_fkey(username)")
+        ) {
+            filter {
+                eq("target_id", me)
+                eq("status", "PENDING")
+            }
+        }.decodeList<InviteRow>().map { i ->
+            AllianceInvite(
+                id = i.id,
+                allianceId = i.allianceId,
+                allianceName = i.alliances?.name.orEmpty(),
+                allianceTag = i.alliances?.tag.orEmpty(),
+                inviterUid = i.inviterId,
+                inviterName = i.inviter?.username.orEmpty(),
+                targetUid = i.targetId,
+                status = i.status,
+                createdAt = i.createdAt.toTimestamp()
+            )
+        }
+    }
+
+    // ------------------------------------------------------------------ membership
 
     suspend fun createAlliance(
         empire: PlayerEmpire,
@@ -37,159 +246,56 @@ class AllianceRepository(
         motto: String,
         crestColor: String,
         openJoin: Boolean
-    ): Result<Unit> {
-        val uid = empire.userId.ifBlank { "local-player-1" }
-        val cleanName = name.trim()
-        val cleanTag = tag.trim().uppercase()
-        val cleanMotto = motto.trim().take(120)
-        if (cleanName.length !in 3..32) {
-            return Result.failure(IllegalArgumentException("Alliance name must be 3–32 characters."))
-        }
-        if (cleanTag.length !in 2..5) {
-            return Result.failure(IllegalArgumentException("Alliance tag must be 2–5 characters."))
-        }
-        if (empire.allianceId.isNotBlank()) {
-            return Result.failure(IllegalStateException("Leave your current alliance first."))
-        }
-
-        val allianceId = UUID.randomUUID().toString()
-        val alliance = Alliance(
-            id = allianceId,
-            realmId = REALM_ID,
-            name = cleanName,
-            tag = cleanTag,
-            motto = cleanMotto.ifBlank { "Forged in Obsidian and Gold" },
-            crestColor = crestColor,
-            leaderUid = uid,
-            officerUids = emptyList(),
-            memberUids = listOf(uid),
-            memberCount = 1L,
-            totalPower = empire.power,
-            openJoin = openJoin
-        )
-        alliancesFlow.value = listOf(alliance) + alliancesFlow.value
-
-        val welcome = AllianceMessage(
-            id = UUID.randomUUID().toString(),
-            allianceId = allianceId,
-            senderUid = uid,
-            senderName = empire.lordName,
-            senderRole = "LEADER",
-            body = "${empire.lordName} founded [$cleanTag] $cleanName!",
-            messageType = "SYSTEM",
-            memberUids = listOf(uid)
-        )
-        messagesByAlliance.value = messagesByAlliance.value + (allianceId to listOf(welcome))
-        return Result.success(Unit)
+    ): Result<Unit> = supabaseResult {
+        rpc("create_alliance", buildJsonObject {
+            put("p_name", name.trim())
+            put("p_tag", tag.trim().uppercase())
+            put("p_motto", motto.trim())
+            put("p_crest", crestColor)
+            put("p_open", openJoin)
+        })
+        afterChange()
     }
 
     suspend fun joinAlliance(
         empire: PlayerEmpire,
         alliance: Alliance,
         invite: AllianceInvite? = null
-    ): Result<Unit> {
-        val uid = empire.userId.ifBlank { "local-player-1" }
-        if (empire.allianceId.isNotBlank()) {
-            return Result.failure(IllegalStateException("You are already in an alliance."))
-        }
-        if (alliance.memberUids.size >= 30) {
-            return Result.failure(IllegalStateException("This alliance is already at 30/30 members."))
-        }
-        if (!alliance.openJoin && invite == null) {
-            return Result.failure(IllegalStateException("This alliance is invite-only."))
-        }
-
-        val updatedMembers = (alliance.memberUids + uid).distinct()
-        alliancesFlow.value = alliancesFlow.value.map {
-            if (it.id == alliance.id) {
-                it.copy(
-                    memberUids = updatedMembers,
-                    memberCount = updatedMembers.size.toLong(),
-                    totalPower = it.totalPower + empire.power
-                )
-            } else {
-                it
-            }
-        }
-        if (invite != null) {
-            invitesFlow.value = invitesFlow.value.map {
-                if (it.id == invite.id) it.copy(status = "ACCEPTED") else it
-            }
-        }
-        val msg = AllianceMessage(
-            id = UUID.randomUUID().toString(),
-            allianceId = alliance.id,
-            senderUid = uid,
-            senderName = empire.lordName,
-            senderRole = "MEMBER",
-            body = "${empire.lordName} swore fealty to [${alliance.tag}]!",
-            messageType = "SYSTEM",
-            memberUids = updatedMembers
-        )
-        val currentMsgs = messagesByAlliance.value[alliance.id].orEmpty()
-        messagesByAlliance.value = messagesByAlliance.value + (alliance.id to (currentMsgs + msg))
-        return Result.success(Unit)
+    ): Result<Unit> = supabaseResult {
+        rpc("join_alliance", buildJsonObject {
+            put("p_alliance", alliance.id.ifBlank { invite?.allianceId.orEmpty() })
+            invite?.let { put("p_invite", it.id) }
+        })
+        afterChange()
     }
 
-    suspend fun declineInvite(invite: AllianceInvite): Result<Unit> {
-        invitesFlow.value = invitesFlow.value.map {
-            if (it.id == invite.id) it.copy(status = "DECLINED") else it
-        }
-        return Result.success(Unit)
+    suspend fun declineInvite(invite: AllianceInvite): Result<Unit> = supabaseResult {
+        rpc("decline_invite", buildJsonObject { put("p_invite", invite.id) })
+        afterChange()
     }
 
-    suspend fun leaveOrDisbandAlliance(empire: PlayerEmpire, alliance: Alliance): Result<Unit> {
-        val uid = empire.userId.ifBlank { "local-player-1" }
-        if (alliance.leaderUid == uid && alliance.memberUids.size > 1) {
-            return Result.failure(IllegalStateException("Transfer leadership before leaving."))
-        }
-        alliancesFlow.value = if (alliance.leaderUid == uid) {
-            alliancesFlow.value.filterNot { it.id == alliance.id }
-        } else {
-            alliancesFlow.value.map {
-                if (it.id == alliance.id) {
-                    val nextMembers = it.memberUids.filter { id -> id != uid }
-                    val nextOfficers = it.officerUids.filter { id -> id != uid }
-                    it.copy(
-                        memberUids = nextMembers,
-                        officerUids = nextOfficers,
-                        memberCount = nextMembers.size.toLong(),
-                        totalPower = (it.totalPower - empire.power).coerceAtLeast(0L)
-                    )
-                } else {
-                    it
-                }
-            }
-        }
-        return Result.success(Unit)
+    suspend fun leaveOrDisbandAlliance(empire: PlayerEmpire, alliance: Alliance): Result<Unit> = supabaseResult {
+        rpc("leave_alliance")
+        ralliesByAlliance.value = ralliesByAlliance.value - alliance.id
+        afterChange()
     }
+
+    // ------------------------------------------------------------------ chat
 
     suspend fun sendMessage(
         empire: PlayerEmpire,
         alliance: Alliance,
         body: String,
         messageType: String = "CHAT"
-    ): Result<Unit> {
-        val uid = empire.userId.ifBlank { "local-player-1" }
-        val clean = body.trim()
-        if (clean.isEmpty() || clean.length > 300) {
-            return Result.failure(IllegalArgumentException("Message must be 1–300 characters."))
-        }
-        val role = alliance.roleOf(uid).takeIf { it != "NONE" } ?: "MEMBER"
-        val msg = AllianceMessage(
-            id = UUID.randomUUID().toString(),
-            allianceId = alliance.id,
-            senderUid = uid,
-            senderName = empire.lordName,
-            senderRole = role,
-            body = clean,
-            messageType = messageType,
-            memberUids = alliance.memberUids
-        )
-        val current = messagesByAlliance.value[alliance.id].orEmpty()
-        messagesByAlliance.value = messagesByAlliance.value + (alliance.id to (current + msg))
-        return Result.success(Unit)
+    ): Result<Unit> = supabaseResult {
+        rpc("send_alliance_message", buildJsonObject {
+            put("p_body", body.trim())
+            put("p_type", messageType)
+        })
+        afterChange()
     }
+
+    // ------------------------------------------------------------------ rallies (still on this device)
 
     suspend fun launchRally(
         empire: PlayerEmpire,
@@ -301,173 +407,73 @@ class AllianceRepository(
         return Result.success(battleLog)
     }
 
+    // ------------------------------------------------------------------ aid & tech
+
     suspend fun requestAid(
         empire: PlayerEmpire,
         alliance: Alliance,
         resourceType: ResourceType,
         amount: Long
-    ): Result<Unit> {
-        val uid = empire.userId.ifBlank { "local-player-1" }
-        val req = ResourceAidRequest(
-            id = UUID.randomUUID().toString(),
-            allianceId = alliance.id,
-            requesterUid = uid,
-            requesterName = empire.lordName,
-            resourceType = resourceType.name,
-            requestedAmount = amount.coerceAtLeast(100L),
-            fulfilledAmount = 0L,
-            status = "OPEN",
-            donorUids = emptyList(),
-            memberUids = alliance.memberUids
-        )
-        val current = aidByAlliance.value[alliance.id].orEmpty()
-        aidByAlliance.value = aidByAlliance.value + (alliance.id to (listOf(req) + current))
-        return Result.success(Unit)
+    ): Result<Unit> = supabaseResult {
+        rpc("request_aid", buildJsonObject {
+            put("p_resource", resourceType.name)
+            put("p_amount", amount)
+        })
+        afterChange()
     }
 
     suspend fun donateAid(
         empire: PlayerEmpire,
         alliance: Alliance,
         request: ResourceAidRequest
-    ): Result<Unit> {
-        val uid = empire.userId.ifBlank { "local-player-1" }
-        val remaining = (request.requestedAmount - request.fulfilledAmount).coerceAtLeast(0L)
-        val gift = remaining.coerceAtMost(250L).coerceAtLeast(1L)
-        val current = aidByAlliance.value[alliance.id].orEmpty()
-        val updated = current.map { item ->
-            if (item.id == request.id) {
-                val nextFulfilled = (item.fulfilledAmount + gift).coerceAtMost(item.requestedAmount)
-                item.copy(
-                    fulfilledAmount = nextFulfilled,
-                    status = if (nextFulfilled >= item.requestedAmount) "FULFILLED" else item.status,
-                    donorUids = (item.donorUids + uid).distinct()
-                )
-            } else {
-                item
-            }
-        }
-        aidByAlliance.value = aidByAlliance.value + (alliance.id to updated)
-        return Result.success(Unit)
+    ): Result<Unit> = supabaseResult {
+        rpc("donate_aid", buildJsonObject { put("p_request", request.id) })
+        afterChange()
     }
 
     suspend fun contributeAllianceTech(
         empire: PlayerEmpire,
         alliance: Alliance,
         techType: AllianceTechType
-    ): Result<String> {
-        var leveled = false
-        alliancesFlow.value = alliancesFlow.value.map { item ->
-            if (item.id == alliance.id) {
-                val nextXp = item.techXp + 25L
-                val leveledUp = nextXp >= 100L
-                leveled = leveledUp
-                val resetXp = if (leveledUp) 0L else nextXp
-                when (techType) {
-                    AllianceTechType.MARCH_SPEED -> item.copy(
-                        techXp = resetXp,
-                        techMarchLevel = if (leveledUp) (item.techMarchLevel + 1L).coerceAtMost(10L) else item.techMarchLevel
-                    )
-                    AllianceTechType.RESOURCE_YIELD -> item.copy(
-                        techXp = resetXp,
-                        techYieldLevel = if (leveledUp) (item.techYieldLevel + 1L).coerceAtMost(10L) else item.techYieldLevel
-                    )
-                    AllianceTechType.RALLY_ATTACK -> item.copy(
-                        techXp = resetXp,
-                        techAttackLevel = if (leveledUp) (item.techAttackLevel + 1L).coerceAtMost(10L) else item.techAttackLevel
-                    )
-                    AllianceTechType.CITADEL_DEFENSE -> item.copy(
-                        techXp = resetXp,
-                        techDefenseLevel = if (leveledUp) (item.techDefenseLevel + 1L).coerceAtMost(10L) else item.techDefenseLevel
-                    )
-                }
-            } else {
-                item
-            }
-        }
-        return Result.success(
-            if (leveled) "Alliance tech leveled up!" else "Contributed to alliance tech."
-        )
+    ): Result<String> = supabaseResult {
+        val msg = rpc("contribute_alliance_tech", buildJsonObject { put("p_tech", techType.name) })
+            .decodeAs<String>()
+        afterChange()
+        msg
     }
+
+    // ------------------------------------------------------------------ leadership
 
     suspend fun inviteLord(
         empire: PlayerEmpire,
         alliance: Alliance,
         targetKingdom: RealmKingdom
-    ): Result<Unit> {
-        val uid = empire.userId.ifBlank { "local-player-1" }
-        val invite = AllianceInvite(
-            id = UUID.randomUUID().toString(),
-            allianceId = alliance.id,
-            allianceName = alliance.name,
-            allianceTag = alliance.tag,
-            inviterUid = uid,
-            inviterName = empire.lordName,
-            targetUid = targetKingdom.ownerUid,
-            targetName = targetKingdom.lordName,
-            status = "PENDING"
-        )
-        invitesFlow.value = listOf(invite) + invitesFlow.value
-        return Result.success(Unit)
+    ): Result<Unit> = supabaseResult {
+        rpc("invite_lord", buildJsonObject { put("p_target", targetKingdom.ownerUid) })
+        afterChange()
     }
 
-    suspend fun toggleOfficer(
-        alliance: Alliance,
-        targetUid: String
-    ): Result<String> {
-        var promoted = false
-        alliancesFlow.value = alliancesFlow.value.map { item ->
-            if (item.id == alliance.id) {
-                val nextOfficers = if (targetUid in item.officerUids) {
-                    item.officerUids.filterNot { it == targetUid }
-                } else {
-                    promoted = true
-                    (item.officerUids + targetUid).distinct()
-                }
-                item.copy(officerUids = nextOfficers)
-            } else {
-                item
-            }
-        }
-        return Result.success(if (promoted) "Promoted to officer." else "Officer rank removed.")
+    suspend fun toggleOfficer(alliance: Alliance, targetUid: String): Result<String> = supabaseResult {
+        val msg = rpc("toggle_officer", buildJsonObject { put("p_target", targetUid) }).decodeAs<String>()
+        afterChange()
+        msg
     }
 
-    suspend fun transferLeadership(
-        alliance: Alliance,
-        targetUid: String
-    ): Result<Unit> {
-        alliancesFlow.value = alliancesFlow.value.map { item ->
-            if (item.id == alliance.id) {
-                val nextOfficers = (item.officerUids.filterNot { it == targetUid } + item.leaderUid).distinct()
-                item.copy(
-                    leaderUid = targetUid,
-                    officerUids = nextOfficers
-                )
-            } else {
-                item
-            }
-        }
-        return Result.success(Unit)
+    suspend fun transferLeadership(alliance: Alliance, targetUid: String): Result<Unit> = supabaseResult {
+        rpc("transfer_leadership", buildJsonObject { put("p_target", targetUid) })
+        afterChange()
     }
 
     suspend fun kickMember(
         alliance: Alliance,
         targetUid: String,
         targetPower: Long = 0L
-    ): Result<Unit> {
-        alliancesFlow.value = alliancesFlow.value.map { item ->
-            if (item.id == alliance.id) {
-                val nextMembers = item.memberUids.filterNot { it == targetUid }
-                val nextOfficers = item.officerUids.filterNot { it == targetUid }
-                item.copy(
-                    memberUids = nextMembers,
-                    officerUids = nextOfficers,
-                    memberCount = nextMembers.size.toLong(),
-                    totalPower = (item.totalPower - targetPower).coerceAtLeast(0L)
-                )
-            } else {
-                item
-            }
-        }
-        return Result.success(Unit)
+    ): Result<Unit> = supabaseResult {
+        rpc("kick_member", buildJsonObject { put("p_target", targetUid) })
+        afterChange()
+    }
+
+    private companion object {
+        const val TAG = "AllianceRepository"
     }
 }

@@ -11,6 +11,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -54,7 +56,7 @@ class EmpireRepository(
         if (pollJob?.isActive == true) return
         pollJob = scope.launch {
             while (isActive) {
-                delay(15_000L)
+                withTimeoutOrNull(15_000L) { GameSignals.refresh.first() }
                 runCatching { refreshOwnEmpire() }.onFailure { Log.w(TAG, "Empire refresh failed", it) }
                 runCatching { refreshKingdoms() }.onFailure { Log.w(TAG, "Kingdom refresh failed", it) }
             }

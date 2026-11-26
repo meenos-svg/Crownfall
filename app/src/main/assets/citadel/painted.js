@@ -25,7 +25,7 @@
     STABLES: { label: "Dread Stables", x: 1150, y: 1330, sprites: ["stables_1.webp", "stables_2.webp", "stables_3.webp", "stables_4.webp"], w: [250, 250, 265, 275] },
     FARM: { label: "Farmstead", x: 1800, y: 1390, sprites: ["farm_1.webp", "farm_2.webp", "farm_3.webp", "farm_4.webp"], w: [300, 300, 300, 300], resource: "FOOD" },
     LUMBER: { label: "Timber Mill", x: 840, y: 1800, sprites: ["lumber_1.webp", "lumber_2.webp", "lumber_3.webp", "lumber_4.webp"], w: [200, 240, 260, 280], resource: "TIMBER" },
-    QUARRY: { label: "Quarry", x: 170, y: 1210, r: 90, resource: "STONE" },
+    QUARRY: { label: "Quarry", x: 175, y: 1270, sprites: ["quarry_1.webp", "quarry_2.webp", "quarry_3.webp", "quarry_4.webp"], w: [220, 230, 240, 250], resource: "STONE" },
     MINT: { label: "Gold Mint", x: 1540, y: 1450, r: 90, resource: "GOLD" }
   };
   var KEYS = Object.keys(BUILDINGS);

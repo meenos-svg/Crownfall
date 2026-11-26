@@ -31,6 +31,11 @@ Most need a second Google account (a friend or a second phone).
 - [ ] Rally lands: report for both, loot split by power sent
 - [ ] Your march lands while your app is closed: report is there next time you open it
 
+## Painted realm maps
+- [ ] Each realm shows its painted map (Crownlands green, Aether Reach misty, Emberfall volcanic)
+- [ ] Bastions, nodes and landmarks sit on land, not in lakes or lava
+- [ ] Zooming in still looks sharp enough
+
 ## Citadel
 - [ ] Chimney smoke and building colours look right on your phone
 

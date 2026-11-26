@@ -1,5 +1,11 @@
 package com.example.ui
 
+import androidx.compose.ui.platform.LocalContext
+
+import androidx.compose.ui.graphics.asImageBitmap
+
+import android.graphics.BitmapFactory
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -252,10 +258,18 @@ fun RealmMapScreen(
         return wx.roundToLong() to wy.roundToLong()
     }
 
-    // Generated landscape for this realm (same realm id -> same map for every player).
+    // The realm's hand-painted map (assets/realms/<realm>.jpg); generated landscape if there isn't one.
     val realmId = shownRealmId.ifBlank { "realm-1" }
+    val appContext = LocalContext.current.applicationContext
     val terrain by produceState<RealmTerrain?>(initialValue = null, realmId) {
-        value = withContext(Dispatchers.Default) { RealmTerrainGenerator.generate(realmId) }
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                appContext.assets.open("realms/$realmId.jpg").use { stream ->
+                    BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                }
+            }.getOrNull()?.let { RealmTerrain(it, emptyList(), emptyList(), painted = true) }
+                ?: RealmTerrainGenerator.generate(realmId)
+        }
     }
 
     val myMarches = remember(activeMarches, empire.userId) {
@@ -329,7 +343,7 @@ fun RealmMapScreen(
                         (bottomRight.x - topLeft.x).roundToInt().coerceAtLeast(1),
                         (bottomRight.y - topLeft.y).roundToInt().coerceAtLeast(1)
                     ),
-                    filterQuality = FilterQuality.Low
+                    filterQuality = if (t.painted) FilterQuality.Medium else FilterQuality.Low
                 )
 
                 // Trees and mountain peaks appear once you zoom in far enough to see them.
@@ -375,10 +389,10 @@ fun RealmMapScreen(
                 }
             }
 
-            // Old roads from the realm's heart to each Shadow Bastion
+            // Old roads from the realm's heart to each Shadow Bastion (painted maps have their own roads)
             val roadEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f), 0f)
             val heart = worldToScreen(50L, 50L, canvasSize)
-            GameCatalog.worldNpcNodes.filter { it.targetType == "BASTION" }.forEach { node ->
+            if (terrain?.painted != true) GameCatalog.worldNpcNodes.filter { it.targetType == "BASTION" }.forEach { node ->
                 drawLine(
                     color = Color(0xFF8A7650).copy(alpha = 0.55f),
                     start = heart,

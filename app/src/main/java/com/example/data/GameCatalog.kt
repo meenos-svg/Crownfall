@@ -378,22 +378,22 @@ object GameCatalog {
         WorldNpcNode("bastion_2", "Ironfang Outpost", "BASTION", 2, 66, 26, 1650, null, 950, 820, 680, 420),
         WorldNpcNode("bastion_3", "Crimson Redoubt", "BASTION", 3, 44, 62, 2800, null, 1450, 1250, 1050, 680),
         WorldNpcNode("bastion_4", "Dreadspire Keep", "BASTION", 4, 74, 58, 4500, null, 2100, 1850, 1600, 1050),
-        WorldNpcNode("bastion_5", "Obsidian Citadel", "BASTION", 5, 50, 50, 7200, null, 3200, 2800, 2500, 1800),
+        WorldNpcNode("bastion_5", "Obsidian Citadel", "BASTION", 5, 46, 54, 7200, null, 3200, 2800, 2500, 1800),
         WorldNpcNode("bastion_6", "Blighted Fortress", "BASTION", 2, 22, 72, 1800, null, 1000, 900, 740, 450),
-        WorldNpcNode("bastion_7", "Gilded Bastion", "BASTION", 3, 80, 78, 3100, null, 1500, 1300, 1100, 950),
+        WorldNpcNode("bastion_7", "Gilded Bastion", "BASTION", 3, 80, 82, 3100, null, 1500, 1300, 1100, 950),
         WorldNpcNode("bastion_8", "Shattered Crown Fort", "BASTION", 4, 30, 18, 5200, null, 2400, 2100, 1900, 1300),
 
         // 12 Rich Realm Resource Nodes (Gathering Expeditions)
         WorldNpcNode("res_food_1", "Golden Grain Vale", "RESOURCE", 2, 36, 42, 0, ResourceType.FOOD, rewardFood = 950),
         WorldNpcNode("res_food_2", "Riverbend Pastures", "RESOURCE", 3, 58, 70, 0, ResourceType.FOOD, rewardFood = 1400),
         WorldNpcNode("res_food_3", "Sunfall Orchards", "RESOURCE", 1, 20, 48, 0, ResourceType.FOOD, rewardFood = 650),
-        WorldNpcNode("res_timber_1", "Darkwood Glade", "RESOURCE", 2, 60, 40, 0, ResourceType.TIMBER, rewardTimber = 950),
+        WorldNpcNode("res_timber_1", "Darkwood Glade", "RESOURCE", 2, 62, 31, 0, ResourceType.TIMBER, rewardTimber = 950),
         WorldNpcNode("res_timber_2", "Elder Pine Ridge", "RESOURCE", 3, 26, 56, 0, ResourceType.TIMBER, rewardTimber = 1400),
         WorldNpcNode("res_timber_3", "Thornbark Thicket", "RESOURCE", 1, 76, 36, 0, ResourceType.TIMBER, rewardTimber = 650),
         WorldNpcNode("res_stone_1", "Basalt Crag Vein", "RESOURCE", 2, 48, 28, 0, ResourceType.STONE, rewardStone = 850),
         WorldNpcNode("res_stone_2", "Obsidian Quarry", "RESOURCE", 3, 68, 66, 0, ResourceType.STONE, rewardStone = 1250),
         WorldNpcNode("res_stone_3", "Granite Chasm", "RESOURCE", 1, 34, 78, 0, ResourceType.STONE, rewardStone = 600),
-        WorldNpcNode("res_gold_1", "Sovereign Gold Seam", "RESOURCE", 3, 52, 46, 0, ResourceType.GOLD, rewardGold = 750),
+        WorldNpcNode("res_gold_1", "Sovereign Gold Seam", "RESOURCE", 3, 40, 47, 0, ResourceType.GOLD, rewardGold = 750),
         WorldNpcNode("res_gold_2", "Ember Vault Mine", "RESOURCE", 2, 40, 20, 0, ResourceType.GOLD, rewardGold = 520),
         WorldNpcNode("res_gold_3", "Crownfall Aureate Pit", "RESOURCE", 4, 82, 50, 0, ResourceType.GOLD, rewardGold = 1100)
     )

@@ -19,7 +19,9 @@ import kotlin.math.min
 class RealmTerrain(
     val image: ImageBitmap,
     val trees: List<Offset>,
-    val peaks: List<Offset>
+    val peaks: List<Offset>,
+    /** True when the image is a hand-painted realm map (it already shows roads, trees and peaks). */
+    val painted: Boolean = false
 )
 
 object RealmTerrainGenerator {

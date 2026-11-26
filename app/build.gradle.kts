@@ -17,8 +17,10 @@ android {
     applicationId = "com.aistudio.crownfall.qrxvmk"
     minSdk = 26
     targetSdk = 36
-    versionCode = 4
-    versionName = "4.0"
+    // Each GitHub build gets a higher version number so updates install cleanly.
+    val ciBuild = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()
+    versionCode = ciBuild?.let { 100 + it } ?: 4
+    versionName = if (ciBuild != null) "4.0.$ciBuild" else "4.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

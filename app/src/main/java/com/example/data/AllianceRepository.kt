@@ -354,11 +354,13 @@ class AllianceRepository(
         empire: PlayerEmpire,
         alliance: Alliance,
         techType: AllianceTechType
-    ): Result<Unit> {
+    ): Result<String> {
+        var leveled = false
         alliancesFlow.value = alliancesFlow.value.map { item ->
             if (item.id == alliance.id) {
                 val nextXp = item.techXp + 25L
                 val leveledUp = nextXp >= 100L
+                leveled = leveledUp
                 val resetXp = if (leveledUp) 0L else nextXp
                 when (techType) {
                     AllianceTechType.MARCH_SPEED -> item.copy(
@@ -382,7 +384,9 @@ class AllianceRepository(
                 item
             }
         }
-        return Result.success(Unit)
+        return Result.success(
+            if (leveled) "Alliance tech leveled up!" else "Contributed to alliance tech."
+        )
     }
 
     suspend fun inviteLord(
@@ -407,15 +411,16 @@ class AllianceRepository(
     }
 
     suspend fun toggleOfficer(
-        empire: PlayerEmpire,
         alliance: Alliance,
         targetUid: String
-    ): Result<Unit> {
+    ): Result<String> {
+        var promoted = false
         alliancesFlow.value = alliancesFlow.value.map { item ->
             if (item.id == alliance.id) {
                 val nextOfficers = if (targetUid in item.officerUids) {
                     item.officerUids.filterNot { it == targetUid }
                 } else {
+                    promoted = true
                     (item.officerUids + targetUid).distinct()
                 }
                 item.copy(officerUids = nextOfficers)
@@ -423,11 +428,10 @@ class AllianceRepository(
                 item
             }
         }
-        return Result.success(Unit)
+        return Result.success(if (promoted) "Promoted to officer." else "Officer rank removed.")
     }
 
     suspend fun transferLeadership(
-        empire: PlayerEmpire,
         alliance: Alliance,
         targetUid: String
     ): Result<Unit> {
@@ -446,9 +450,9 @@ class AllianceRepository(
     }
 
     suspend fun kickMember(
-        empire: PlayerEmpire,
         alliance: Alliance,
-        targetUid: String
+        targetUid: String,
+        targetPower: Long = 0L
     ): Result<Unit> {
         alliancesFlow.value = alliancesFlow.value.map { item ->
             if (item.id == alliance.id) {
@@ -457,7 +461,8 @@ class AllianceRepository(
                 item.copy(
                     memberUids = nextMembers,
                     officerUids = nextOfficers,
-                    memberCount = nextMembers.size.toLong()
+                    memberCount = nextMembers.size.toLong(),
+                    totalPower = (item.totalPower - targetPower).coerceAtLeast(0L)
                 )
             } else {
                 item

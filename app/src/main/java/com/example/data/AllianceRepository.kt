@@ -10,9 +10,9 @@ class AllianceRepository(
     private val auth: Any? = null
 ) {
     private val alliancesFlow = MutableStateFlow<List<Alliance>>(emptyList())
-    private val messagesByAlliance = MutableStateFlow>>(emptyMap())
-    private val ralliesByAlliance = MutableStateFlow>>(emptyMap())
-    private val aidByAlliance = MutableStateFlow>>(emptyMap())
+    private val messagesByAlliance = MutableStateFlow<Map<String, List<AllianceMessage>>>(emptyMap())
+    private val ralliesByAlliance = MutableStateFlow<Map<String, List<AllianceRally>>>(emptyMap())
+    private val aidByAlliance = MutableStateFlow<Map<String, List<ResourceAidRequest>>>(emptyMap())
     private val invitesFlow = MutableStateFlow<List<AllianceInvite>>(emptyList())
 
     fun observeAlliances(): Flow<List<Alliance>> =
@@ -122,7 +122,7 @@ class AllianceRepository(
             senderUid = uid,
             senderName = empire.lordName,
             senderRole = "MEMBER",
-            body = "${empire.lordName} swore fealty to [${alliance.tag}]!",
+            body = "\( {empire.lordName} swore fealty to [ \){alliance.tag}]!",
             messageType = "SYSTEM",
             memberUids = updatedMembers
         )
@@ -217,7 +217,7 @@ class AllianceRepository(
             targetPower = targetPower.coerceAtLeast(100L),
             totalPower = powerCommit,
             participantUids = listOf(uid),
-            participantSummary = "${empire.lordName} (${formatCompact(powerCommit)})",
+            participantSummary = "\( {empire.lordName} ( \){formatCompact(powerCommit)})",
             launchAtEpochMs = System.currentTimeMillis() + 60_000L,
             status = "GATHERING",
             memberUids = alliance.memberUids
@@ -248,7 +248,7 @@ class AllianceRepository(
             if (it.id == rally.id) {
                 it.copy(
                     participantUids = it.participantUids + uid,
-                    participantSummary = "${it.participantSummary}, ${empire.lordName} (${formatCompact(powerCommit)})".take(300),
+                    participantSummary = "${it.participantSummary}, \( {empire.lordName} ( \){formatCompact(powerCommit)})".take(300),
                     totalPower = it.totalPower + powerCommit
                 )
             } else {

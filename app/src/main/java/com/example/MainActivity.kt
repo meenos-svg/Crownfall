@@ -9,49 +9,26 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Text
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.key
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import com.example.data.SupabaseProvider
+import com.example.ui.AuthScreen
 import com.example.ui.CrownfallMainShell
+import com.example.ui.theme.CrownGold
 import com.example.ui.theme.CrownfallTheme
+import com.example.ui.theme.ObsidianVoid
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.status.SessionStatus
+import kotlinx.serialization.json.JsonPrimitive
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Catch any uncaught background/Firestore errors so the app displays them instead of closing
-        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
-        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            val stackTrace = throwable.stackTraceToString()
-            runOnUiThread {
-                setContent {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(androidx.compose.ui.graphics.Color(0xFF121212))
-                            .padding(16.dp)
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        Text(
-                            text = "Crash Log:\n\n$stackTrace",
-                            color = androidx.compose.ui.graphics.Color(0xFFFF6B6B)
-                        )
-                    }
-                }
-            }
-            if (stackTrace.contains("Native") || throwable is OutOfMemoryError) {
-                defaultHandler?.uncaughtException(thread, throwable)
-            }
-        }
-
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
@@ -66,21 +43,41 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun CrownfallRoot() {
-    var isSignedIn by remember { mutableStateOf(true) }
+    val auth = SupabaseProvider.client.auth
+    val status by auth.sessionStatus.collectAsState()
 
-    if (isSignedIn) {
-        CrownfallMainShell(
-            currentUserId = "local-player-1",
-            initialDisplayName = "Tempora",
-            onSignedOut = {
-                isSignedIn = false
+    when (val s = status) {
+        is SessionStatus.Authenticated -> {
+            val user = s.session.user
+            val userId = user?.id.orEmpty()
+            val meta = user?.userMetadata
+            val displayName = (meta?.get("full_name") as? JsonPrimitive)?.content
+                ?: (meta?.get("name") as? JsonPrimitive)?.content
+            key(userId) {
+                CrownfallMainShell(
+                    currentUserId = userId,
+                    initialDisplayName = displayName,
+                    onSignedOut = { /* sessionStatus switches to NotAuthenticated by itself */ }
+                )
             }
+        }
+
+        is SessionStatus.Initializing -> LoadingScreen()
+
+        else -> AuthScreen(
+            onAuthSuccess = { /* sessionStatus switches to Authenticated by itself */ }
         )
-    } else {
-        CrownfallMainShell(
-            currentUserId = "local-player-1",
-            initialDisplayName = "Tempora",
-            onSignedOut = {}
-        )
+    }
+}
+
+@Composable
+private fun LoadingScreen() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ObsidianVoid),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator(color = CrownGold)
     }
 }

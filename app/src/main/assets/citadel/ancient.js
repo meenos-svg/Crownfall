@@ -232,6 +232,51 @@
     return col;
   }
 
+  /** Golden sandstone relief panel: a border frame around a serpent / sun glyph. */
+  function reliefPanel(seed) {
+    var col = makeCanvas(256, 256);
+    var bmp = makeCanvas(256, 256);
+    var c = col.getContext("2d");
+    var b = bmp.getContext("2d");
+    var r = rng(seed);
+    c.fillStyle = "#8a6a3c";
+    c.fillRect(0, 0, 256, 256);
+    b.fillStyle = "#808080";
+    b.fillRect(0, 0, 256, 256);
+    for (var i = 0; i < 300; i++) {
+      c.fillStyle = r() > 0.5 ? "rgba(40,26,10,0.12)" : "rgba(255,225,160,0.10)";
+      c.fillRect(r() * 256, r() * 256, 2 + r() * 10, 2 + r() * 6);
+    }
+    function both(fn) { fn(c, "rgba(30,18,6,0.75)"); fn(b, "#202020"); }
+    both(function (ctx, col2) {
+      ctx.strokeStyle = col2;
+      ctx.lineWidth = 8;
+      ctx.strokeRect(14, 14, 228, 228);
+      ctx.lineWidth = 5;
+      // serpent spiral
+      ctx.beginPath();
+      for (var t = 0; t < 60; t++) {
+        var a = t * 0.32;
+        var rr = 8 + t * 1.55;
+        var x = 128 + Math.cos(a) * rr;
+        var y = 128 + Math.sin(a) * rr * 0.85;
+        if (t === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      // stepped fret along the bottom
+      ctx.beginPath();
+      for (var k = 0; k < 6; k++) {
+        var bx = 26 + k * 36;
+        ctx.moveTo(bx, 226); ctx.lineTo(bx, 206); ctx.lineTo(bx + 18, 206); ctx.lineTo(bx + 18, 216); ctx.lineTo(bx + 30, 216);
+      }
+      ctx.stroke();
+    });
+    c.strokeStyle = "rgba(255,230,170,0.35)";
+    c.lineWidth = 2;
+    c.strokeRect(20, 20, 216, 216);
+    return { color: col, bump: bmp };
+  }
+
   // ------------------------------------------------------------------ materials
 
   var origMaterials = window.createDioramaMaterials;
@@ -261,7 +306,6 @@
     mats.thatchRoof.userData.pitched = true;
     mats.adobeRoof = new THREE.MeshStandardMaterial({ color: 0x8c6c48, roughness: 0.95 });
     mats.slateRoof = mats.adobeRoof;
-    mats.terracottaRoof = new THREE.MeshStandardMaterial({ color: 0x9a4a2a, roughness: 0.85 });
     mats.turretRoof = new THREE.MeshStandardMaterial({ color: 0x6b4e2a, roughness: 0.6, metalness: 0.35 });
 
     var lavaColor = toTex(lv.color, 1, 1, true);
@@ -295,6 +339,21 @@
     mats.flowerGold = new THREE.MeshStandardMaterial({ color: 0xe0b33a, roughness: 0.8 });
     mats.broadleaf = new THREE.MeshStandardMaterial({ color: 0x142a12, roughness: 0.9 });
     mats.mountainFar = new THREE.MeshStandardMaterial({ color: 0x1c1712, roughness: 0.96, flatShading: true });
+    var relief = reliefPanel(1707);
+    mats.relief = new THREE.MeshStandardMaterial({
+      map: toTex(relief.color, 1, 1, true), bumpMap: toTex(relief.bump, 1, 1, false),
+      bumpScale: 0.6, roughness: 0.75, metalness: 0.15
+    });
+    mats.teal = new THREE.MeshStandardMaterial({ color: 0x1f6b62, roughness: 0.6 });
+    mats.hedge = new THREE.MeshStandardMaterial({ color: 0x1d4a1a, roughness: 0.9 });
+    mats.corn = new THREE.MeshStandardMaterial({ color: 0xd9b23a, roughness: 0.8 });
+    mats.cropGreen = new THREE.MeshStandardMaterial({ color: 0x2f6a24, roughness: 0.85 });
+    mats.darkOpening = new THREE.MeshBasicMaterial({ color: 0x0e0a07 });
+    mats.horse = new THREE.MeshStandardMaterial({ color: 0x3a2312, roughness: 0.8 });
+    mats.cloth = [0x8a2a22, 0x2a4a7a, 0xc9a23a, 0x3d6b3a, 0x7a4a8a, 0xd8d0c0].map(function (c) {
+      return new THREE.MeshStandardMaterial({ color: c, roughness: 0.85 });
+    });
+    mats.skin = new THREE.MeshStandardMaterial({ color: 0x6b4a32, roughness: 0.8 });
     return mats;
   };
 
@@ -308,164 +367,288 @@
       var dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       var t = (now - t0) / 1000;
-      for (var i = 0; i < updaters.length; i++) updaters[i](dt, t);
+      for (var i = 0; i < updaters.length; i++) {
+        try { updaters[i](dt, t); } catch (e) { /* keep animating */ }
+      }
       requestAnimationFrame(tick);
     }
     requestAnimationFrame(tick);
   }
 
-  // ------------------------------------------------------------------ world additions
+  // ------------------------------------------------------------------ small builders
 
-  function ribbon(points, width, y, mat) {
-    var curve = new THREE.CatmullRomCurve3(points.map(function (p) { return new THREE.Vector3(p[0], y, p[1]); }));
-    var pts = curve.getPoints(60);
-    var verts = [], uvs = [], idx = [];
-    var dist = 0;
-    for (var k = 0; k < pts.length; k++) {
-      if (k > 0) dist += pts[k].distanceTo(pts[k - 1]);
-      var cur = pts[k];
-      var nxt = pts[Math.min(k + 1, pts.length - 1)];
-      var prv = pts[Math.max(k - 1, 0)];
-      var tan = new THREE.Vector3().subVectors(nxt, prv).normalize();
-      var perp = new THREE.Vector3(-tan.z, 0, tan.x);
-      var hw = width * (0.85 + 0.3 * Math.sin(k * 0.7)) * 0.5;
-      verts.push(cur.x + perp.x * hw, y, cur.z + perp.z * hw);
-      verts.push(cur.x - perp.x * hw, y, cur.z - perp.z * hw);
-      uvs.push(0, dist / width, 1, dist / width);
-      if (k < pts.length - 1) {
-        var a = k * 2;
-        idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
-      }
-    }
-    var geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
-    geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
-    geo.setIndex(idx);
-    geo.computeVertexNormals();
-    var m = new THREE.Mesh(geo, mat);
-    m.receiveShadow = true;
+  function cyl(parent, rt, rb, h, seg, x, y, z, mat) {
+    var m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), mat);
+    m.position.set(x, y, z);
+    parent.add(shadowed(m));
     return m;
   }
 
-  function addVolcano(group, mats, x, z, r, h, smokeSpots) {
-    var cone = new THREE.Mesh(new THREE.ConeGeometry(r, h, 14, 4, true), mats.volcanoRock);
-    cone.position.set(x, h / 2 - 0.3, z);
-    group.add(shadowed(cone));
-    var crater = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.22, r * 0.22, 0.3, 14), mats.lavaPool);
-    crater.position.set(x, h * 0.86, z);
-    group.add(crater);
-    // glowing lava flow spilling down the front flank
-    var flow = new THREE.Mesh(new THREE.ConeGeometry(r, h, 14, 1, true, -0.25, 0.5), mats.lava);
-    flow.position.set(x, h / 2 - 0.3, z);
-    flow.scale.set(1.03, 1.0, 1.03);
-    group.add(flow);
-    var glow = new THREE.PointLight(0xff6a20, 1.4, r * 5);
-    glow.position.set(x, h + 1.5, z);
-    group.add(glow);
-    smokeSpots.push(new THREE.Vector3(x, h * 0.9, z));
+  function cone(parent, r, h, seg, x, y, z, mat, ry) {
+    var m = new THREE.Mesh(new THREE.ConeGeometry(r, h, seg), mat);
+    m.position.set(x, y, z);
+    if (ry) m.rotation.y = ry;
+    parent.add(shadowed(m));
+    return m;
   }
 
-  function addHut(group, mats, x, y, z, s) {
+  function pitchedRoof(parent, w, h, d, x, y, z, mat, ry) {
+    var shape = new THREE.Shape();
+    shape.moveTo(-w / 2, 0);
+    shape.lineTo(0, h);
+    shape.lineTo(w / 2, 0);
+    shape.closePath();
+    var geo = new THREE.ExtrudeGeometry(shape, { depth: d, bevelEnabled: false });
+    geo.translate(0, 0, -d / 2);
+    var m = new THREE.Mesh(geo, mat);
+    m.position.set(x, y, z);
+    if (ry) m.rotation.y = ry;
+    parent.add(shadowed(m));
+    return m;
+  }
+
+  /** Merlons around the top edge of a w x d rectangle centred at (x, z). */
+  function crenellate(parent, w, d, x, y, z, mat, size) {
+    var s = size || 0.5;
+    var nx = Math.max(2, Math.round(w / (s * 2)));
+    var nz = Math.max(2, Math.round(d / (s * 2)));
+    for (var i = 0; i < nx; i++) {
+      var px = x - w / 2 + (i + 0.5) * (w / nx);
+      box(parent, s, s * 1.1, s * 0.8, px, y + s * 0.55, z - d / 2 + s * 0.4, mat);
+      box(parent, s, s * 1.1, s * 0.8, px, y + s * 0.55, z + d / 2 - s * 0.4, mat);
+    }
+    for (var j = 1; j < nz - 1; j++) {
+      var pz = z - d / 2 + (j + 0.5) * (d / nz);
+      box(parent, s * 0.8, s * 1.1, s, x - w / 2 + s * 0.4, y + s * 0.55, pz, mat);
+      box(parent, s * 0.8, s * 1.1, s, x + w / 2 - s * 0.4, y + s * 0.55, pz, mat);
+    }
+  }
+
+  /** Vertical pilaster ribs on the front (+z) face, like the carved fortress in the art. */
+  function pilasters(parent, w, h, x, y, z, mat, count) {
+    var n = count || Math.max(2, Math.round(w / 1.4));
+    for (var i = 0; i < n; i++) {
+      var px = x - w / 2 + (i + 0.5) * (w / n);
+      box(parent, 0.32, h * 0.86, 0.22, px, y, z + 0.1, mat);
+    }
+  }
+
+  function adobeHouse(parent, mats, w, h, d, x, z, ry, tiled) {
+    var g = new THREE.Group();
+    g.position.set(x, 0, z);
+    if (ry) g.rotation.y = ry;
+    box(g, w + 0.2, 0.35, d + 0.2, 0, 0.17, 0, mats.flagstoneTop);
+    box(g, w, h, d, 0, 0.35 + h / 2, 0, mats.tudorWall);
+    box(g, 0.7, 1.1, 0.06, 0, 0.9, d / 2 + 0.02, mats.darkOpening);
+    if (tiled) {
+      pitchedRoof(g, w + 0.5, h * 0.45, d + 0.4, 0, 0.35 + h, 0, mats.terracottaRoof);
+    } else {
+      box(g, w + 0.2, 0.16, d + 0.2, 0, 0.35 + h + 0.08, 0, mats.adobeRoof);
+      crenellate(g, w + 0.2, d + 0.2, 0, 0.35 + h + 0.16, 0, mats.tudorWall, 0.3);
+    }
+    parent.add(g);
+    return g;
+  }
+
+  function thatchHut(parent, mats, x, y, z, s) {
     var g = new THREE.Group();
     g.position.set(x, y, z);
-    var wall = new THREE.Mesh(new THREE.CylinderGeometry(0.9 * s, 1.0 * s, 1.1 * s, 10), mats.tudorWall);
-    wall.position.y = 0.55 * s;
-    g.add(shadowed(wall));
-    var roof = new THREE.Mesh(new THREE.ConeGeometry(1.35 * s, 1.3 * s, 10), mats.thatchRoof);
-    roof.position.y = 1.1 * s + 0.62 * s;
-    g.add(shadowed(roof));
-    var door = new THREE.Mesh(new THREE.BoxGeometry(0.4 * s, 0.6 * s, 0.1), new THREE.MeshBasicMaterial({ color: 0x1a120a }));
-    door.position.set(0, 0.3 * s, 0.97 * s);
-    g.add(door);
-    group.add(g);
+    cyl(g, 0.9 * s, 1.0 * s, 1.1 * s, 10, 0, 0.55 * s, 0, mats.tudorWall);
+    cone(g, 1.4 * s, 1.35 * s, 10, 0, 1.1 * s + 0.65 * s, 0, mats.thatchRoof);
+    box(g, 0.4 * s, 0.6 * s, 0.1, 0, 0.3 * s, 0.97 * s, mats.darkOpening);
+    parent.add(g);
+    return g;
   }
 
-  function addBroadleaf(group, mats, x, y, z, s) {
-    var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12 * s, 0.18 * s, 1.0 * s, 6), mats.timber);
-    trunk.position.set(x, y + 0.5 * s, z);
-    group.add(shadowed(trunk));
-    var crown = new THREE.Mesh(new THREE.DodecahedronGeometry(0.85 * s, 0), mats.broadleaf);
-    crown.position.set(x, y + 1.45 * s, z);
-    crown.scale.set(1, 0.85, 1);
-    group.add(shadowed(crown));
+  function thatchHall(parent, mats, w, d, x, z, ry) {
+    var g = new THREE.Group();
+    g.position.set(x, 0, z);
+    if (ry) g.rotation.y = ry;
+    box(g, w, 1.3, d, 0, 0.65, 0, mats.tudorWall);
+    pitchedRoof(g, w + 0.8, 1.5, d + 0.6, 0, 1.3, 0, mats.thatchRoof);
+    box(g, 0.8, 1.0, 0.06, 0, 0.5, d / 2 + 0.02, mats.darkOpening);
+    parent.add(g);
+    return g;
   }
 
-  function addCloudCitadel(group, mats) {
-    var cloud = new THREE.Group();
-    cloud.position.set(9, 12, -34);
-    var r = rng(77);
-    for (var i = 0; i < 26; i++) {
-      var puff = new THREE.Mesh(new THREE.SphereGeometry(1.6 + r() * 2.4, 12, 10), mats.cloud);
-      var a = r() * Math.PI * 2, d = r() * 7;
-      puff.position.set(Math.cos(a) * d, (r() - 0.6) * 1.8, Math.sin(a) * d * 0.7);
-      puff.scale.y = 0.65;
-      cloud.add(puff);
-    }
-    // marble sky-temple on top
-    var deck = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.6, 0.6, 24), mats.marble);
-    deck.position.y = 1.6;
-    cloud.add(shadowed(deck));
-    for (var c = 0; c < 10; c++) {
-      var ang = (c / 10) * Math.PI * 2;
-      var col = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 2.4, 8), mats.marble);
-      col.position.set(Math.cos(ang) * 3.4, 3.1, Math.sin(ang) * 3.4);
-      cloud.add(col);
-    }
-    var ring = new THREE.Mesh(new THREE.TorusGeometry(3.4, 0.22, 6, 28), mats.templeGold);
-    ring.rotation.x = Math.PI / 2;
-    ring.position.y = 4.35;
-    cloud.add(ring);
-    var dome = new THREE.Mesh(new THREE.SphereGeometry(1.5, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), mats.templeGold);
-    dome.position.y = 1.9;
-    cloud.add(dome);
-    group.add(cloud);
-    updaters.push(function (dt, t) {
-      cloud.position.y = 12 + Math.sin(t * 0.5) * 0.6;
-      cloud.rotation.y = Math.sin(t * 0.12) * 0.15;
-    });
+  function villager(parent, mats, x, y, z, seed) {
+    var g = new THREE.Group();
+    g.position.set(x, y, z);
+    var cloth = mats.cloth[seed % mats.cloth.length];
+    cyl(g, 0.12, 0.2, 0.55, 6, 0, 0.28, 0, cloth);
+    var head = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 5), mats.skin);
+    head.position.y = 0.66;
+    g.add(head);
+    parent.add(g);
+    return g;
   }
 
-  var origWorld = window.buildAlpineValleyWorld;
-  window.buildAlpineValleyWorld = function (scene, mats) {
-    var result = origWorld(scene, mats);
+  function brazier(parent, mats, x, y, z, flames) {
+    cyl(parent, 0.3, 0.16, 0.4, 8, x, y + 0.2, z, mats.templeGold);
+    var f = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.65, 7), mats.brazierFlame);
+    f.position.set(x, y + 0.72, z);
+    parent.add(f);
+    if (flames) flames.push(f);
+  }
+
+  // ------------------------------------------------------------------ world
+
+  var WALL = { x: 12, z: 18, h: 4.2, t: 2.2, gate: 2.4 };
+
+  function terrainHeight(x, z) {
+    var ax = Math.abs(x), az = Math.abs(z);
+    if (ax < 15.5 && az < 21.5) return 0;
+    if (x < -12 && x > -23 && z > -45 && z < 30) return 0; // lava flats
+    var dx = Math.max(0, ax - 15.5), dz = Math.max(0, az - 21.5);
+    var dist = Math.sqrt(dx * dx + dz * dz);
+    var blend = Math.min(1, dist / 18);
+    var hill = (Math.sin(x * 0.07) * Math.cos(z * 0.06) * 2.6 + Math.sin((x + z) * 0.045) * 2.0 + dist * 0.12) * blend;
+    // lake basin south-east
+    var ldx = (x - 21) / 9, ldz = (z - 29) / 6.5;
+    var ld = Math.sqrt(ldx * ldx + ldz * ldz);
+    if (ld < 1.6) hill *= Math.max(0, (ld - 1.0) / 0.6);
+    return Math.max(0, hill);
+  }
+
+  function buildDominionWorld(scene, mats) {
     var g = new THREE.Group();
     scene.add(g);
-    var th = result.terrainHeight;
     var smokeSpots = [];
+    var flames = [];
 
-    // Warmer, hazier sky to match the painted-map look
-    scene.background = new THREE.Color(0xb7a98c);
-    scene.fog = new THREE.Fog(0xb8a888, 80, 300);
+    scene.background = new THREE.Color(0xb3a789);
+    scene.fog = new THREE.Fog(0xb3a789, 85, 300);
 
-    // Obsidian fields and a lava river west of the walls
-    var westPath = [[-26, -40], [-27.5, -26], [-25.4, -14], [-27.2, -2], [-25.2, 9], [-27.6, 20], [-26.2, 34]];
-    var basaltBand = ribbon(westPath, 10, 0.05, mats.basalt);
-    g.add(basaltBand);
-    g.add(ribbon(westPath, 3.6, 0.1, mats.lava));
-    var rr = rng(91);
-    for (var i = 0; i < 26; i++) {
-      var pz = -30 + i * 2.3;
-      var side = i % 2 === 0 ? -1 : 1;
-      var px = -26.4 + side * (2.6 + rr() * 2.2);
-      var rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.4 + rr() * 0.8, 0), mats.obsidianRock);
-      rock.position.set(px, 0.25, pz);
-      rock.scale.set(1.2, 0.7 + rr() * 0.6, 1);
-      rock.rotation.y = rr() * 6;
-      g.add(shadowed(rock));
+    // Terrain
+    var gGeo = new THREE.PlaneGeometry(260, 260, 104, 104);
+    gGeo.rotateX(-Math.PI / 2);
+    var pos = gGeo.attributes.position;
+    for (var i = 0; i < pos.count; i++) pos.setY(i, terrainHeight(pos.getX(i), pos.getZ(i)));
+    gGeo.computeVertexNormals();
+    var terrain = new THREE.Mesh(gGeo, mats.valleyGrass);
+    terrain.receiveShadow = true;
+    g.add(terrain);
+
+    // Paved inner courtyard
+    var yard = new THREE.Mesh(new THREE.PlaneGeometry(WALL.x * 2, WALL.z * 2), mats.courtyardDirt);
+    yard.rotation.x = -Math.PI / 2;
+    yard.position.y = 0.03;
+    yard.receiveShadow = true;
+    g.add(yard);
+    // flagstone avenues: south gate -> fountain -> ziggurat, west gate -> fountain
+    g.add(ribbon([[0, 19.5], [0, 10], [-1.5, 2], [-2, -1], [1.5, -5], [5, -6.5]], 2.6, 0.06, mats.flagstoneTop));
+    g.add(ribbon([[-14, 0], [-9, -0.5], [-4.5, -1]], 2.4, 0.06, mats.flagstoneTop));
+    g.add(ribbon([[-2, -1], [-6, -6], [-6, -8]], 1.8, 0.06, mats.flagstoneTop));
+
+    // Walls with carved relief panels on the outside
+    function wallSeg(x1, z1, x2, z2) {
+      var dx = x2 - x1, dz = z2 - z1;
+      var len = Math.sqrt(dx * dx + dz * dz);
+      var seg = new THREE.Group();
+      seg.position.set((x1 + x2) / 2, 0, (z1 + z2) / 2);
+      seg.rotation.y = Math.atan2(dx, dz);
+      box(seg, WALL.t, WALL.h, len, 0, WALL.h / 2, 0, mats.stoneWall);
+      box(seg, WALL.t + 0.2, 0.24, len + 0.1, 0, WALL.h + 0.1, 0, mats.flagstoneTop);
+      var n = Math.max(2, Math.floor(len / 1.3));
+      for (var m = 0; m < n; m++) {
+        var mz = -len / 2 + (m + 0.5) * (len / n);
+        box(seg, 0.5, 0.75, 0.75, WALL.t / 2 - 0.25, WALL.h + 0.55, mz, mats.stoneWall);
+        box(seg, 0.4, 0.5, 0.75, -WALL.t / 2 + 0.2, WALL.h + 0.45, mz, mats.stoneWall);
+      }
+      var panels = Math.floor(len / 4);
+      for (var p = 0; p < panels; p++) {
+        var pz = -len / 2 + (p + 0.5) * (len / panels);
+        var panel = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), mats.relief);
+        panel.position.set(WALL.t / 2 + 0.03, WALL.h * 0.52, pz);
+        panel.rotation.y = Math.PI / 2;
+        seg.add(panel);
+        var panel2 = panel.clone();
+        panel2.position.x = -WALL.t / 2 - 0.03;
+        panel2.rotation.y = -Math.PI / 2;
+        seg.add(panel2);
+      }
+      g.add(seg);
     }
-    addVolcano(g, mats, -44, -30, 11, 16, smokeSpots);
-    addVolcano(g, mats, -38, 2, 6, 8, smokeSpots);
+    var X = WALL.x, Z = WALL.z, G = WALL.gate;
+    wallSeg(-X, -Z, X, -Z);           // north
+    wallSeg(X, -Z, X, Z);             // east
+    wallSeg(X, Z, G + 1.2, Z);        // south (east half)
+    wallSeg(-G - 1.2, Z, -X, Z);      // south (west half)
+    wallSeg(-X, Z, -X, G + 1.2);      // west (south half)
+    wallSeg(-X, -G - 1.2, -X, -Z);    // west (north half)
+
+    // Massive tapered towers with relief faces
+    function tower(x, z, s, h, withFire) {
+      var t = new THREE.Group();
+      t.position.set(x, 0, z);
+      var body = new THREE.Mesh(new THREE.CylinderGeometry(s * 0.62, s * 0.78, h, 4), mats.stoneKeep);
+      body.rotation.y = Math.PI / 4;
+      body.position.y = h / 2;
+      t.add(shadowed(body));
+      for (var f = 0; f < 4; f++) {
+        var a = f * Math.PI / 2;
+        var panel = new THREE.Mesh(new THREE.PlaneGeometry(s * 0.78, h * 0.45), mats.relief);
+        var off = s * 0.72 + 0.02;
+        panel.position.set(Math.sin(a) * off, h * 0.42, Math.cos(a) * off);
+        panel.rotation.y = a;
+        panel.rotation.x = 0;
+        t.add(panel);
+      }
+      box(t, s * 1.0, 0.4, s * 1.0, 0, h + 0.2, 0, mats.flagstoneTop);
+      crenellate(t, s * 1.0, s * 1.0, 0, h + 0.4, 0, mats.stoneWall, 0.45);
+      if (withFire) brazier(t, mats, 0, h + 0.4, 0, flames);
+      g.add(t);
+    }
+    tower(-X, -Z, 4.0, 7.6, true);
+    tower(X, -Z, 4.0, 7.6, true);
+    tower(-X, Z, 4.0, 7.2, true);
+    tower(X, Z, 4.0, 7.2, true);
+    tower(X, 0, 3.4, 6.4, false);
+    tower(0, -Z, 3.4, 6.4, false);
+    // gate pylons
+    tower(-G - 1.6, Z, 2.9, 8.4, true);
+    tower(G + 1.6, Z, 2.9, 8.4, true);
+    tower(-X, -G - 1.6, 2.9, 8.8, true);
+    tower(-X, G + 1.6, 2.9, 8.8, true);
+    // lintels over the gates
+    box(g, 2 * G + 1.4, 0.8, WALL.t + 0.4, 0, 6.6, Z, mats.stoneKeep);
+    box(g, WALL.t + 0.4, 0.8, 2 * G + 1.4, -X, 6.8, 0, mats.stoneKeep);
+
+    // Lava river right outside the west wall, crossed by a stone bridge from the west gate
+    var lavaPath = [[-17, -46], [-16.6, -30], [-17.4, -16], [-16.5, -2], [-17.2, 12], [-18.2, 24], [-24, 33], [-36, 41]];
+    g.add(ribbon(lavaPath, 8.5, 0.05, mats.basalt));
+    g.add(ribbon(lavaPath, 4.0, 0.1, mats.lava));
+    var bridge = new THREE.Group();
+    bridge.position.set(-16.8, 0, 0);
+    box(bridge, 7.2, 0.5, 3.0, 0, 1.05, 0, mats.flagstoneTop);
+    box(bridge, 7.2, 0.6, 0.3, 0, 1.55, 1.35, mats.stoneWall);
+    box(bridge, 7.2, 0.6, 0.3, 0, 1.55, -1.35, mats.stoneWall);
+    [-2.6, 2.6].forEach(function (px) { box(bridge, 1.2, 1.1, 3.0, px, 0.5, 0, mats.stoneWall); });
+    g.add(bridge);
+
+    var rr = rng(91);
+    for (var sp = 0; sp < 30; sp++) {
+      var pz = -42 + sp * 2.4;
+      var side = sp % 2 === 0 ? -1 : 1;
+      var lx = -17.2 + side * (2.6 + rr() * 1.4);
+      if (Math.abs(pz) < 3) continue;
+      var spire = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5 + rr() * 0.6, 0), mats.obsidianRock);
+      spire.position.set(lx, 0.6, pz);
+      spire.scale.set(0.8, 1.4 + rr() * 1.6, 0.8);
+      spire.rotation.y = rr() * 6;
+      g.add(shadowed(spire));
+    }
+    addVolcano(g, mats, -42, -28, 11, 16, smokeSpots);
+    addVolcano(g, mats, -36, 4, 6, 8, smokeSpots);
     addVolcano(g, mats, -46, 22, 8, 11, smokeSpots);
 
-    // Embers drifting up from the lava river
     var emberMat = new THREE.MeshBasicMaterial({ color: 0xffa040, transparent: true, opacity: 0.9 });
     var embers = [];
-    for (var e = 0; e < 40; e++) {
+    for (var e = 0; e < 44; e++) {
       var em = new THREE.Mesh(new THREE.SphereGeometry(0.07, 5, 4), emberMat);
       g.add(em);
-      embers.push({ m: em, x: -26.4 + (rr() - 0.5) * 3, z: -34 + rr() * 64, p: rr() });
+      embers.push({ m: em, x: -17 + (rr() - 0.5) * 3, z: -40 + rr() * 66, p: rr() });
     }
-    // Ash plumes from the craters
     var ashMat = new THREE.MeshBasicMaterial({ color: 0x5a524c, transparent: true, opacity: 0.35, depthWrite: false });
     var plumes = [];
     smokeSpots.forEach(function (spot, si) {
@@ -493,40 +676,84 @@
         pl.m.scale.set(s, s * 0.8, s);
         pl.m.material.opacity = (1 - cy) * 0.4;
       }
+      for (var f = 0; f < flames.length; f++) {
+        var fl = flames[f];
+        fl.scale.set(1, 0.85 + Math.sin(t * 9 + f * 1.7) * 0.15 + Math.sin(t * 23 + f) * 0.06, 1);
+      }
     });
 
-    // Thatched villages outside the east gate and along the southern road
-    var huts = [
-      [27.5, -6], [30.5, -3.5], [28.5, 0.5], [32, 2.5], [29.5, 5.5], [33, 7.5], [27.5, 9],
-      [30.8, 11.5], [26.5, 19.5], [29.8, 21.5], [6, 24.5], [9.5, 26], [2.5, 26.5]
-    ];
+    // Outside the south gate: market stalls, crop plots, huts and villagers
+    var market = [[6.5, 23.5], [9.5, 25.5], [3.5, 26.5], [12.5, 23]];
+    market.forEach(function (m, idx) {
+      var st = new THREE.Group();
+      st.position.set(m[0], terrainHeight(m[0], m[1]), m[1]);
+      box(st, 2.0, 0.8, 1.6, 0, 0.4, 0, mats.timber);
+      [[-0.9, -0.7], [0.9, -0.7], [-0.9, 0.7], [0.9, 0.7]].forEach(function (c) {
+        cyl(st, 0.06, 0.06, 1.7, 5, c[0], 0.85, c[1], mats.timber);
+      });
+      pitchedRoof(st, 2.5, 0.8, 2.0, 0, 1.7, 0, mats.thatchRoof);
+      [0, 1, 2].forEach(function (k) {
+        var basket = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.18, 0.2, 8), k === 1 ? mats.flowerRed : mats.corn);
+        basket.position.set(-0.6 + k * 0.6, 0.9, 0.3);
+        st.add(basket);
+      });
+      g.add(st);
+    });
+    function cropPlot(x, z, w, d, mat) {
+      box(g, w, 0.2, d, x, 0.1, z, mats.gardenSoil);
+      for (var r2 = 0; r2 < Math.floor(d / 0.6); r2++) {
+        for (var c2 = 0; c2 < Math.floor(w / 0.6); c2++) {
+          var pl = new THREE.Mesh(new THREE.DodecahedronGeometry(0.2, 0), mat);
+          pl.position.set(x - w / 2 + 0.3 + c2 * 0.6, 0.32, z - d / 2 + 0.3 + r2 * 0.6);
+          g.add(pl);
+        }
+      }
+    }
+    cropPlot(-1.5, 30.5, 3.2, 2.4, mats.cropGreen);
+    var huts = [[16, 20], [18.5, 23], [15, 26], [-14, 31.5], [-11, 33], [24, 14], [26.5, 17], [23, 20.5], [27, -4], [29.5, -1], [26, 2]];
     huts.forEach(function (h, idx) {
-      addHut(g, mats, h[0], th(h[0], h[1]), h[1], 0.8 + (idx % 3) * 0.12);
+      thatchHut(g, mats, h[0], terrainHeight(h[0], h[1]), h[1], 0.8 + (idx % 3) * 0.12);
+    });
+    var walkers = [];
+    var vr = rng(303);
+    for (var v = 0; v < 22; v++) {
+      var vx = 0 + vr() * 15, vz = 21 + vr() * 7;
+      var person = villager(g, mats, vx, terrainHeight(vx, vz), vz, v);
+      walkers.push({ m: person, x: vx, z: vz, a: vr() * 6, r: 0.6 + vr() * 1.6, s: 0.2 + vr() * 0.3 });
+    }
+    updaters.push(function (dt, t) {
+      for (var w = 0; w < walkers.length; w++) {
+        var wk = walkers[w];
+        var ang = wk.a + t * wk.s;
+        wk.m.position.x = wk.x + Math.cos(ang) * wk.r;
+        wk.m.position.z = wk.z + Math.sin(ang) * wk.r * 0.6;
+        wk.m.rotation.y = -ang;
+      }
     });
 
     // Lake to the south-east
     var lake = new THREE.Mesh(new THREE.CircleGeometry(1, 40), mats.lakeWater);
     lake.rotation.x = -Math.PI / 2;
     lake.scale.set(8, 5.5, 1);
-    lake.position.set(19, 0.12, 30);
+    lake.position.set(21, 0.12, 29);
     g.add(lake);
-    var shore = new THREE.Mesh(new THREE.RingGeometry(0.98, 1.12, 40), mats.courtyardDirt);
-    shore.rotation.x = -Math.PI / 2;
-    shore.scale.set(8, 5.5, 1);
-    shore.position.set(19, 0.11, 30);
-    g.add(shore);
 
-    // Forest to the south-west
+    // Forest to the south-west, beyond the lava
     var fr = rng(55);
-    for (var f = 0; f < 46; f++) {
-      var fx = -14 + fr() * 14;
-      var fz = 24 + fr() * 12;
-      addBroadleaf(g, mats, fx, th(fx, fz), fz, 0.9 + fr() * 0.6);
+    for (var f2 = 0; f2 < 50; f2++) {
+      var fx = -34 + fr() * 16;
+      var fz = 26 + fr() * 14;
+      if (fx > -25 && fz < 34) continue;
+      addBroadleaf(g, mats, fx, terrainHeight(fx, fz), fz, 0.9 + fr() * 0.6);
+    }
+    for (var f3 = 0; f3 < 24; f3++) {
+      var ex = 18 + fr() * 14, ez = -38 + fr() * 14;
+      addBroadleaf(g, mats, ex, terrainHeight(ex, ez), ez, 0.9 + fr() * 0.5);
     }
 
-    // A ring of brown, snow-capped mountains to the north and east
-    [[-6, -60, 22, 30], [14, -62, 20, 28], [30, -56, 18, 26], [48, -44, 20, 30],
-     [58, -20, 16, 24], [60, 6, 16, 22], [-24, -64, 18, 24]].forEach(function (m) {
+    // Mountain ring
+    [[-6, -66, 24, 34], [16, -68, 22, 30], [34, -60, 20, 28], [52, -44, 22, 32],
+     [62, -18, 18, 26], [64, 8, 16, 22], [-26, -68, 20, 26], [-62, -40, 18, 24]].forEach(function (m) {
       var peak = new THREE.Mesh(new THREE.ConeGeometry(m[2], m[3], 8), mats.mountainFar);
       peak.position.set(m[0], m[3] * 0.44, m[1]);
       peak.rotation.y = m[0] * 0.13;
@@ -537,185 +764,644 @@
       g.add(cap);
     });
 
-    addCloudCitadel(g, mats);
-
-    // Terraced gardens inside the walls
-    function gardenBed(x, z, w, d, plantMat) {
-      box(g, w, 0.45, d, x, 0.22, z, mats.stoneWall);
-      box(g, w - 0.3, 0.1, d - 0.3, x, 0.48, z, mats.gardenSoil);
-      var pr = rng(Math.floor(x * 100 + z * 7));
-      var n = Math.floor(w * d * 1.4);
-      for (var p = 0; p < n; p++) {
-        var px = x + (pr() - 0.5) * (w - 0.6);
-        var pz = z + (pr() - 0.5) * (d - 0.6);
-        var pick = pr();
-        var mat = pick < 0.2 ? mats.flowerRed : pick < 0.32 ? mats.flowerGold : plantMat;
-        var plant = new THREE.Mesh(new THREE.DodecahedronGeometry(0.2 + pr() * 0.15, 0), mat);
-        plant.position.set(px, 0.65, pz);
-        g.add(shadowed(plant));
+    // Hedged garden beds around the fountain
+    function agave(x, z, s) {
+      for (var k = 0; k < 7; k++) {
+        var leaf = new THREE.Mesh(new THREE.ConeGeometry(0.08 * s, 0.9 * s, 4), mats.agave);
+        var a = (k / 7) * Math.PI * 2;
+        leaf.position.set(x + Math.cos(a) * 0.18 * s, 0.75 + 0.35 * s, z + Math.sin(a) * 0.18 * s);
+        leaf.rotation.z = Math.cos(a) * 0.6;
+        leaf.rotation.x = -Math.sin(a) * 0.6;
+        g.add(leaf);
       }
     }
-    gardenBed(5.0, -11.8, 2.6, 3.4, mats.leafBright);
-    gardenBed(4.6, -1.0, 2.4, 2.2, mats.leafBright);
-    gardenBed(-0.8, 13.4, 3.0, 2.0, mats.agave);
-    gardenBed(5.2, 13.2, 2.2, 2.2, mats.leafBright);
+    function garden(x, z, w, d, kind) {
+      box(g, w, 0.55, 0.3, x, 0.28, z - d / 2, mats.hedge);
+      box(g, w, 0.55, 0.3, x, 0.28, z + d / 2, mats.hedge);
+      box(g, 0.3, 0.55, d, x - w / 2, 0.28, z, mats.hedge);
+      box(g, 0.3, 0.55, d, x + w / 2, 0.28, z, mats.hedge);
+      box(g, w - 0.3, 0.3, d - 0.3, x, 0.15, z, mats.gardenSoil);
+      var pr = rng(Math.floor(x * 97 + z * 13 + 500));
+      var cols = Math.floor((w - 0.6) / 0.55), rows = Math.floor((d - 0.6) / 0.55);
+      for (var r = 0; r < rows; r++) {
+        for (var c = 0; c < cols; c++) {
+          var px = x - w / 2 + 0.45 + c * 0.55, pz = z - d / 2 + 0.45 + r * 0.55;
+          if (kind === "corn") {
+            var stalk = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.85, 5), pr() < 0.5 ? mats.corn : mats.cropGreen);
+            stalk.position.set(px, 0.72, pz);
+            g.add(stalk);
+          } else if (kind === "agave") {
+            if ((r + c) % 2 === 0) agave(px, pz, 0.8 + pr() * 0.4);
+          } else {
+            var pick = pr();
+            var mat = pick < 0.25 ? mats.flowerRed : pick < 0.4 ? mats.flowerGold : mats.leafBright;
+            var plant = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18 + pr() * 0.1, 0), mat);
+            plant.position.set(px, 0.45, pz);
+            g.add(plant);
+          }
+        }
+      }
+    }
+    garden(-6.2, -3.6, 3.4, 2.8, "corn");
+    garden(-6.2, 2.6, 3.4, 2.6, "flowers");
+    garden(2.0, 1.8, 3.0, 2.6, "agave");
+    garden(2.4, -2.6, 2.6, 2.2, "flowers");
+    agave(-9.6, -7.5, 1.3);
+    agave(-2.6, -8.2, 1.2);
+    agave(9.2, -4.6, 1.3);
+
+    addCloudCitadel(g, mats);
 
     if (!window.__ancientLoop) {
       window.__ancientLoop = true;
       startLoop();
     }
-    return result;
+    return { worldGroup: g, terrainHeight: terrainHeight };
+  }
+
+  function ribbon(points, width, y, mat) {
+    var curve = new THREE.CatmullRomCurve3(points.map(function (p) { return new THREE.Vector3(p[0], y, p[1]); }));
+    var pts = curve.getPoints(60);
+    var verts = [], uvs = [], idx = [];
+    var dist = 0;
+    for (var k = 0; k < pts.length; k++) {
+      if (k > 0) dist += pts[k].distanceTo(pts[k - 1]);
+      var cur = pts[k];
+      var nxt = pts[Math.min(k + 1, pts.length - 1)];
+      var prv = pts[Math.max(k - 1, 0)];
+      var tan = new THREE.Vector3().subVectors(nxt, prv).normalize();
+      var perp = new THREE.Vector3(-tan.z, 0, tan.x);
+      var hw = width * (0.9 + 0.2 * Math.sin(k * 0.7)) * 0.5;
+      verts.push(cur.x + perp.x * hw, y, cur.z + perp.z * hw);
+      verts.push(cur.x - perp.x * hw, y, cur.z - perp.z * hw);
+      uvs.push(0, dist / width, 1, dist / width);
+      if (k < pts.length - 1) {
+        var a = k * 2;
+        idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+      }
+    }
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
+    geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    var m = new THREE.Mesh(geo, mat);
+    m.receiveShadow = true;
+    return m;
+  }
+
+  function addVolcano(group, mats, x, z, r, h, smokeSpots) {
+    var body = new THREE.Mesh(new THREE.ConeGeometry(r, h, 14, 4, true), mats.volcanoRock);
+    body.position.set(x, h / 2 - 0.3, z);
+    group.add(shadowed(body));
+    var crater = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.22, r * 0.22, 0.3, 14), mats.lavaPool);
+    crater.position.set(x, h * 0.86, z);
+    group.add(crater);
+    var flow = new THREE.Mesh(new THREE.ConeGeometry(r, h, 14, 1, true, -0.25, 0.5), mats.lava);
+    flow.position.set(x, h / 2 - 0.3, z);
+    flow.scale.set(1.03, 1.0, 1.03);
+    group.add(flow);
+    var glow = new THREE.PointLight(0xff6a20, 1.4, r * 5);
+    glow.position.set(x, h + 1.5, z);
+    group.add(glow);
+    smokeSpots.push(new THREE.Vector3(x, h * 0.9, z));
+  }
+
+  function addBroadleaf(group, mats, x, y, z, s) {
+    var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12 * s, 0.18 * s, 1.0 * s, 6), mats.timber);
+    trunk.position.set(x, y + 0.5 * s, z);
+    group.add(shadowed(trunk));
+    var crown = new THREE.Mesh(new THREE.DodecahedronGeometry(0.85 * s, 0), mats.broadleaf);
+    crown.position.set(x, y + 1.45 * s, z);
+    crown.scale.set(1, 0.85, 1);
+    group.add(shadowed(crown));
+  }
+
+  function addCloudCitadel(group, mats) {
+    var cloud = new THREE.Group();
+    cloud.position.set(-8, 13, -32);
+    var r = rng(77);
+    for (var i = 0; i < 28; i++) {
+      var puff = new THREE.Mesh(new THREE.SphereGeometry(1.6 + r() * 2.4, 12, 10), mats.cloud);
+      var a = r() * Math.PI * 2, d = r() * 7;
+      puff.position.set(Math.cos(a) * d, (r() - 0.6) * 1.8, Math.sin(a) * d * 0.7);
+      puff.scale.y = 0.65;
+      cloud.add(puff);
+    }
+    // a trail of cloud steps drifting down toward the citadel
+    for (var s = 0; s < 8; s++) {
+      var stepPuff = new THREE.Mesh(new THREE.SphereGeometry(1.3 - s * 0.06, 10, 8), mats.cloud);
+      stepPuff.position.set(4 + s * 1.6, -1.2 - s * 1.3, 4 + s * 1.4);
+      stepPuff.scale.y = 0.5;
+      cloud.add(stepPuff);
+    }
+    var deck = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.6, 0.6, 24), mats.marble);
+    deck.position.y = 1.6;
+    cloud.add(shadowed(deck));
+    for (var c = 0; c < 10; c++) {
+      var ang = (c / 10) * Math.PI * 2;
+      var col = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 2.4, 8), mats.marble);
+      col.position.set(Math.cos(ang) * 3.4, 3.1, Math.sin(ang) * 3.4);
+      cloud.add(col);
+    }
+    var ring = new THREE.Mesh(new THREE.TorusGeometry(3.4, 0.22, 6, 28), mats.templeGold);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 4.35;
+    cloud.add(ring);
+    var throne = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.2, 0.8), mats.templeGold);
+    throne.position.set(0, 2.9, -1.6);
+    cloud.add(throne);
+    var pool = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.1, 18), mats.fountainWater);
+    pool.position.set(0, 1.95, 1.2);
+    cloud.add(pool);
+    group.add(cloud);
+    updaters.push(function (dt, t) {
+      cloud.position.y = 13 + Math.sin(t * 0.5) * 0.6;
+    });
+  }
+
+  window.buildAlpineValleyWorld = function (scene, mats) {
+    return buildDominionWorld(scene, mats);
   };
 
-  // ------------------------------------------------------------------ ziggurat keep
+  // ------------------------------------------------------------------ building models
+  //
+  // Every building has 4 looks: Lv 1-4, 5-9, 10-14 and 15+. Each model builds into an
+  // empty group at local (0,0,0) and returns { top, badge: [dx, dz] } for its labels.
 
-  function buildZiggurat(group, mats, tiers, flames) {
-    var B = 4.8;      // base half-width
-    var STEP = 0.62;  // inset per tier
-    var H = 2.3;      // tier height
+  function stageFor(level) {
+    var l = Math.max(1, Number(level) || 1);
+    if (l >= 15) return 4;
+    if (l >= 10) return 3;
+    if (l >= 5) return 2;
+    return 1;
+  }
+
+  var MODELS = {};
+
+  // Obsidian Keep: a carved ziggurat fortress
+  MODELS.KEEP = function (g, mats, st, fx) {
+    var tiers = 2 + st;          // 3..6
+    var B = 4.2, STEP = 0.6, H = 2.0;
     for (var i = 0; i < tiers; i++) {
       var hw = B - i * STEP;
-      box(group, hw * 2, H, hw * 2, 0, i * H + H / 2, 0, mats.stoneKeep);
-      box(group, hw * 2 + 0.2, 0.18, hw * 2 + 0.2, 0, (i + 1) * H, 0, mats.flagstoneTop);
-      // gold trim along each terrace edge
-      var ty = (i + 1) * H + 0.12, e = hw + 0.11;
-      box(group, e * 2, 0.07, 0.07, 0, ty, e, mats.templeGold);
-      box(group, e * 2, 0.07, 0.07, 0, ty, -e, mats.templeGold);
-      box(group, 0.07, 0.07, e * 2, e, ty, 0, mats.templeGold);
-      box(group, 0.07, 0.07, e * 2, -e, ty, 0, mats.templeGold);
+      box(g, hw * 2, H, hw * 2, 0, i * H + H / 2, 0, mats.stoneKeep);
+      pilasters(g, hw * 2 - 0.6, H, 0, i * H + H / 2, hw, mats.stoneWall);
+      box(g, hw * 2 + 0.2, 0.18, hw * 2 + 0.2, 0, (i + 1) * H, 0, mats.flagstoneTop);
+      var e = hw + 0.11, ty = (i + 1) * H + 0.12;
+      box(g, e * 2, 0.07, 0.07, 0, ty, e, mats.templeGold);
+      box(g, 0.07, 0.07, e * 2, e, ty, 0, mats.templeGold);
+      box(g, 0.07, 0.07, e * 2, -e, ty, 0, mats.templeGold);
       if (i < tiers - 1) {
-        // corner towers on each terrace
         [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) {
-          var tx = c[0] * (hw - 0.35), tz = c[1] * (hw - 0.35);
-          box(group, 0.8, H + 0.9, 0.8, tx, i * H + (H + 0.9) / 2, tz, mats.stoneWall);
-          box(group, 0.95, 0.16, 0.95, tx, i * H + H + 0.98, tz, mats.flagstoneTop);
+          var tx = c[0] * (hw - 0.4), tz = c[1] * (hw - 0.4);
+          box(g, 0.9, H + 1.0, 0.9, tx, i * H + (H + 1.0) / 2, tz, mats.stoneWall);
+          crenellate(g, 0.9, 0.9, tx, i * H + H + 1.0, tz, mats.stoneWall, 0.28);
         });
       }
     }
     var top = tiers * H;
     var topHw = B - (tiers - 1) * STEP;
-
-    // grand stairway up the south face
-    var steps = tiers * 5;
-    var zStart = B + 0.3;
-    var zEnd = topHw - 0.3;
-    var stepH = top / steps;
+    // grand stairway
+    var steps = tiers * 5, zStart = B + 0.3, zEnd = topHw - 0.2, stepH = top / steps;
+    var stepD = (zStart - zEnd) / steps;
     for (var s = 0; s < steps; s++) {
-      var z = zStart - (s + 0.5) * ((zStart - zEnd) / steps);
-      box(group, 1.9, (s + 1) * stepH, (zStart - zEnd) / steps + 0.02, 0, (s + 1) * stepH / 2, z, mats.flagstoneTop);
+      box(g, 1.8, (s + 1) * stepH, stepD + 0.02, 0, (s + 1) * stepH / 2, zStart - (s + 0.5) * stepD, mats.flagstoneTop);
     }
-    // side balustrades
-    [-1.15, 1.15].forEach(function (sx) {
-      for (var s2 = 0; s2 < steps; s2 += 2) {
-        var z2 = zStart - (s2 + 0.5) * ((zStart - zEnd) / steps);
-        box(group, 0.35, (s2 + 1) * stepH + 0.35, ((zStart - zEnd) / steps) * 2, sx, ((s2 + 1) * stepH + 0.35) / 2, z2, mats.stoneWall);
+    // summit gatehouse
+    box(g, 2.6, 2.0, 2.6, 0, top + 1.0, 0, mats.stoneWall);
+    pilasters(g, 2.2, 2.0, 0, top + 1.0, 1.3, mats.stoneKeep, 3);
+    box(g, 0.8, 1.2, 0.08, 0, top + 0.6, 1.36, mats.darkOpening);
+    crenellate(g, 2.6, 2.6, 0, top + 2.0, 0, mats.stoneWall, 0.35);
+    // stair pylons
+    [-1.5, 1.5].forEach(function (px) {
+      box(g, 0.8, 3.0 + st * 0.4, 0.8, px, (3.0 + st * 0.4) / 2, zStart - 0.1, mats.stoneKeep);
+      brazier(g, mats, px, 3.0 + st * 0.4, zStart - 0.1, fx.flames);
+    });
+    if (st >= 2) {
+      // fortified wings
+      [-1, 1].forEach(function (side) {
+        var wx = side * (B + 1.3);
+        var wh = 3.4 + st * 0.5;
+        box(g, 2.4, wh, 5.2, wx, wh / 2, -0.2, mats.stoneKeep);
+        pilasters(g, 2.0, wh, wx, wh / 2, 2.4, mats.stoneWall, 2);
+        crenellate(g, 2.4, 5.2, wx, wh, -0.2, mats.stoneWall, 0.35);
+        box(g, 1.2, wh + 1.6, 1.2, wx, (wh + 1.6) / 2, 2.0, mats.stoneWall);
+        crenellate(g, 1.2, 1.2, wx, wh + 1.6, 2.0, mats.stoneWall, 0.3);
+      });
+    }
+    if (st >= 3) {
+      // rear towers
+      [-1, 1].forEach(function (side) {
+        var rx = side * (B - 0.6), th = top * 0.8;
+        box(g, 1.6, th, 1.6, rx, th / 2, -B - 0.4, mats.stoneWall);
+        crenellate(g, 1.6, 1.6, rx, th, -B - 0.4, mats.stoneWall, 0.32);
+      });
+    }
+    if (st >= 4) {
+      cone(g, 1.0, 1.4, 4, 0, top + 2.9, 0, mats.templeGold, Math.PI / 4);
+      [[-1, 1], [1, 1], [-1, -1], [1, -1]].forEach(function (c) {
+        brazier(g, mats, c[0] * (topHw - 0.25), top, c[1] * (topHw - 0.25), fx.flames);
+      });
+    }
+    return { top: top + 3, badge: [0, zStart + 0.6] };
+  };
+
+  // Alliance Hall: a stepped temple with a teal frieze shrine
+  MODELS.ALLIANCE_HALL = function (g, mats, st, fx) {
+    var tiers = 1 + st;          // 2..5
+    var B = 2.9, STEP = 0.42, H = 1.15;
+    for (var i = 0; i < tiers; i++) {
+      var hw = B - i * STEP;
+      box(g, hw * 2, H, hw * 2, 0, i * H + H / 2, 0, mats.stoneWall);
+      box(g, hw * 2 + 0.12, 0.12, hw * 2 + 0.12, 0, (i + 1) * H, 0, mats.flagstoneTop);
+    }
+    var top = tiers * H, topHw = B - (tiers - 1) * STEP;
+    var steps = tiers * 4, zStart = B + 0.4, zEnd = topHw - 0.1, stepH = top / steps, stepD = (zStart - zEnd) / steps;
+    for (var s = 0; s < steps; s++) {
+      box(g, 1.4, (s + 1) * stepH, stepD + 0.02, 0, (s + 1) * stepH / 2, zStart - (s + 0.5) * stepD, mats.flagstoneTop);
+    }
+    box(g, 1.9, 1.5, 1.7, 0, top + 0.75, -0.1, mats.tudorWall);
+    box(g, 2.1, 0.35, 1.9, 0, top + 1.6, -0.1, mats.teal);
+    box(g, 2.2, 0.2, 2.0, 0, top + 1.88, -0.1, mats.stoneWall);
+    box(g, 0.6, 0.9, 0.06, 0, top + 0.5, 0.78, mats.darkOpening);
+    if (st >= 2) box(g, 1.3, 0.5, 1.1, 0, top + 2.2, -0.1, mats.stoneWall);
+    if (st >= 3) {
+      [-1.6, 1.6].forEach(function (px) {
+        box(g, 0.5, 1.6, 0.5, px, 0.8, zStart + 0.3, mats.stoneKeep);
+        cone(g, 0.32, 0.5, 4, px, 1.85, zStart + 0.3, mats.templeGold, Math.PI / 4);
+      });
+    }
+    if (st >= 4) {
+      box(g, 0.35, 1.4, 0.35, 0, top + 2.6, -0.1, mats.templeGold);
+      brazier(g, mats, -0.8, top + 1.98, 0.5, fx.flames);
+      brazier(g, mats, 0.8, top + 1.98, 0.5, fx.flames);
+    }
+    return { top: top + 2.4, badge: [0, zStart + 0.8] };
+  };
+
+  // War Barracks: a long colonnaded hall facing the courtyard, with ranks of troops
+  MODELS.BARRACKS = function (g, mats, st, fx) {
+    var L = 5 + st * 1.25, D = 3.0, H = 2.4 + st * 0.3;
+    box(g, L, H, D, 0, H / 2, 0, mats.stoneKeep);
+    pilasters(g, L - 0.4, H, 0, H / 2, D / 2, mats.stoneWall);
+    box(g, L + 0.3, 0.2, D + 0.3, 0, H + 0.1, 0, mats.flagstoneTop);
+    for (var d = 0; d < Math.floor(L / 2.2); d++) {
+      box(g, 0.7, 1.2, 0.06, -L / 2 + 1.1 + d * 2.2, 0.6, D / 2 + 0.24, mats.darkOpening);
+    }
+    if (st >= 2) {
+      [-1, 1].forEach(function (side) {
+        box(g, 1.5, H + 1.4, 1.5, side * (L / 2 + 0.2), (H + 1.4) / 2, 0, mats.stoneWall);
+        crenellate(g, 1.5, 1.5, side * (L / 2 + 0.2), H + 1.4, 0, mats.stoneWall, 0.3);
+      });
+      // ranks of soldiers drilling in front
+      for (var r = 0; r < Math.min(st, 3); r++) {
+        for (var c = 0; c < Math.floor(L / 0.7); c++) {
+          var sx = -L / 2 + 0.5 + c * 0.7, sz = D / 2 + 1.1 + r * 0.6;
+          cyl(g, 0.11, 0.15, 0.45, 5, sx, 0.23, sz, mats.cloth[0]);
+          var helm = new THREE.Mesh(new THREE.SphereGeometry(0.09, 5, 4), mats.templeGold);
+          helm.position.set(sx, 0.53, sz);
+          g.add(helm);
+        }
+      }
+    }
+    if (st >= 3) {
+      crenellate(g, L + 0.3, D + 0.3, 0, H + 0.2, 0, mats.stoneWall, 0.35);
+      [-L / 4, L / 4].forEach(function (bx) {
+        cyl(g, 0.04, 0.05, 1.8, 5, bx, H + 1.1, D / 2, mats.timber);
+        box(g, 0.6, 0.9, 0.03, bx + 0.3, H + 1.5, D / 2, mats.cloth[0]);
+      });
+    }
+    if (st >= 4) {
+      box(g, L * 0.5, 1.4, D * 0.7, 0, H + 0.9, -0.2, mats.stoneWall);
+      crenellate(g, L * 0.5, D * 0.7, 0, H + 1.6, -0.2, mats.stoneWall, 0.3);
+    }
+    return { top: H + 2, badge: [0, D / 2 + 1.2 + st * 0.5] };
+  };
+
+  // Ashbow Range: adobe lodge, straw targets and later a watchtower
+  MODELS.ARCHERY = function (g, mats, st, fx) {
+    adobeHouse(g, mats, 3.0, 2.0, 2.6, -1.2, -1.0, 0, true);
+    var targets = 1 + st;
+    for (var t = 0; t < targets; t++) {
+      var tx = -1.8 + t * 1.0, tz = 2.2;
+      var disc = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.14, 12), mats.thatchRoof);
+      disc.rotation.x = Math.PI / 2;
+      disc.position.set(tx, 0.75, tz);
+      g.add(shadowed(disc));
+      var bull = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.16, 10), mats.flowerRed);
+      bull.rotation.x = Math.PI / 2;
+      bull.position.set(tx, 0.75, tz + 0.02);
+      g.add(bull);
+      cyl(g, 0.04, 0.04, 0.8, 4, tx, 0.4, tz - 0.12, mats.timber);
+    }
+    if (st >= 2) adobeHouse(g, mats, 2.2, 1.7, 2.0, 1.8, -1.4, 0, false);
+    if (st >= 3) {
+      box(g, 1.3, 4.6, 1.3, 2.4, 2.3, 1.0, mats.stoneWall);
+      box(g, 1.8, 0.2, 1.8, 2.4, 4.7, 1.0, mats.timber);
+      crenellate(g, 1.8, 1.8, 2.4, 4.8, 1.0, mats.stoneWall, 0.28);
+    }
+    if (st >= 4) {
+      cyl(g, 0.05, 0.05, 2.0, 5, -2.8, 1.0, 1.2, mats.timber);
+      box(g, 0.7, 1.0, 0.03, -2.45, 1.5, 1.2, mats.cloth[1]);
+    }
+    return { top: 3.5 + (st >= 3 ? 1.6 : 0), badge: [0, 3.0] };
+  };
+
+  // Siege Foundry: stone forge with chimneys and siege engines
+  MODELS.SIEGE = function (g, mats, st, fx) {
+    box(g, 3.4, 2.2, 2.6, -0.4, 1.1, -0.6, mats.stoneKeep);
+    pilasters(g, 3.0, 2.2, -0.4, 1.1, 0.7, mats.stoneWall, 3);
+    box(g, 3.6, 0.2, 2.8, -0.4, 2.3, -0.6, mats.flagstoneTop);
+    box(g, 0.9, 4.6, 0.9, 0.9, 2.3, -1.3, mats.stoneWall);
+    fx.smoke.push(new THREE.Vector3(0.9, 4.8, -1.3));
+    box(g, 1.2, 0.6, 1.0, -1.4, 0.3, 1.4, mats.stoneWall);
+    box(g, 0.8, 0.2, 0.6, -1.4, 0.68, 1.4, mats.forgeEmber);
+    if (st >= 2) {
+      // trebuchet frame
+      var tb = new THREE.Group();
+      tb.position.set(1.6, 0, 1.6);
+      box(tb, 1.6, 0.2, 1.0, 0, 0.1, 0, mats.timber);
+      box(tb, 0.15, 1.8, 0.15, 0, 1.0, -0.4, mats.timber);
+      box(tb, 0.15, 1.8, 0.15, 0, 1.0, 0.4, mats.timber);
+      var arm = box(tb, 0.12, 0.12, 2.6, 0, 1.9, 0, mats.timberLight);
+      arm.rotation.x = 0.5;
+      box(tb, 0.5, 0.5, 0.5, 0, 1.3, -0.9, mats.stoneWall);
+      g.add(tb);
+    }
+    if (st >= 3) {
+      box(g, 0.8, 4.0, 0.8, -1.9, 2.0, -1.3, mats.stoneWall);
+      fx.smoke.push(new THREE.Vector3(-1.9, 4.2, -1.3));
+      crenellate(g, 3.6, 2.8, -0.4, 2.4, -0.6, mats.stoneWall, 0.3);
+    }
+    if (st >= 4) {
+      var tb2 = new THREE.Group();
+      tb2.position.set(-2.6, 0, 1.8);
+      tb2.rotation.y = 0.5;
+      box(tb2, 1.6, 0.2, 1.0, 0, 0.1, 0, mats.timber);
+      box(tb2, 0.15, 1.8, 0.15, 0, 1.0, -0.4, mats.timber);
+      box(tb2, 0.15, 1.8, 0.15, 0, 1.0, 0.4, mats.timber);
+      var arm2 = box(tb2, 0.12, 0.12, 2.6, 0, 1.9, 0, mats.timberLight);
+      arm2.rotation.x = -0.4;
+      g.add(tb2);
+    }
+    return { top: 5.0, badge: [0, 2.8] };
+  };
+
+  // Dread Stables: thatched halls, paddock and horses
+  MODELS.STABLES = function (g, mats, st, fx) {
+    thatchHall(g, mats, 3.6, 2.2, -0.6, -0.9, 0);
+    // paddock fence
+    var px = 0.6, pz = 1.6, pw = 3.6, pd = 1.8;
+    [[-pw / 2, -pd / 2], [pw / 2, -pd / 2], [-pw / 2, pd / 2], [pw / 2, pd / 2], [0, pd / 2], [0, -pd / 2]].forEach(function (c) {
+      box(g, 0.1, 0.7, 0.1, px + c[0], 0.35, pz + c[1], mats.timber);
+    });
+    box(g, pw, 0.08, 0.06, px, 0.55, pz + pd / 2, mats.timberLight);
+    box(g, pw, 0.08, 0.06, px, 0.55, pz - pd / 2, mats.timberLight);
+    box(g, 0.06, 0.08, pd, px - pw / 2, 0.55, pz, mats.timberLight);
+    box(g, 0.06, 0.08, pd, px + pw / 2, 0.55, pz, mats.timberLight);
+    for (var h = 0; h < st + 1; h++) {
+      var hx = px - 1.2 + h * 0.8, hz = pz + (h % 2 ? 0.3 : -0.3);
+      box(g, 0.28, 0.3, 0.65, hx, 0.45, hz, mats.horse, h * 0.6);
+      box(g, 0.14, 0.3, 0.2, hx, 0.68, hz + 0.28, mats.horse, h * 0.6);
+    }
+    if (st >= 3) thatchHall(g, mats, 2.4, 2.0, 2.4, -1.0, 0);
+    if (st >= 4) {
+      cyl(g, 0.05, 0.05, 2.0, 5, -2.6, 1.0, 0.4, mats.timber);
+      box(g, 0.7, 1.0, 0.03, -2.25, 1.5, 0.4, mats.cloth[2]);
+    }
+    return { top: 3.2, badge: [0, 2.9] };
+  };
+
+  // Farmstead: crop fields that multiply, a granary and later a windmill
+  MODELS.FARM = function (g, mats, st, fx) {
+    var plots = [[-1.6, 1.6], [1.6, 1.6], [-1.6, 4.2], [1.6, 4.2]];
+    for (var p = 0; p < st; p++) {
+      var cx = plots[p][0], cz = plots[p][1];
+      box(g, 2.8, 0.2, 2.2, cx, 0.1, cz, mats.gardenSoil);
+      for (var r = 0; r < 3; r++) {
+        for (var c = 0; c < 4; c++) {
+          var stalk = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.6, 5), p % 2 ? mats.cropGreen : mats.corn);
+          stalk.position.set(cx - 1.05 + c * 0.7, 0.5, cz - 0.7 + r * 0.7);
+          g.add(stalk);
+        }
+      }
+    }
+    thatchHut(g, mats, -1.6, 0, -1.8, 1.0);
+    if (st >= 2) thatchHut(g, mats, 1.4, 0, -2.0, 0.85);
+    if (st >= 3) {
+      var mill = new THREE.Group();
+      mill.position.set(3.8, 0, -0.6);
+      cyl(mill, 0.6, 0.85, 3.2, 8, 0, 1.6, 0, mats.tudorWall);
+      cone(mill, 0.9, 1.0, 8, 0, 3.7, 0, mats.thatchRoof);
+      var sails = new THREE.Group();
+      sails.position.set(0, 3.0, 0.9);
+      for (var k = 0; k < 4; k++) {
+        var blade = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.8, 0.05), mats.awningCanvas);
+        blade.position.y = 0.9;
+        var holder = new THREE.Group();
+        holder.rotation.z = k * Math.PI / 2;
+        holder.add(blade);
+        sails.add(holder);
+      }
+      mill.add(sails);
+      g.add(mill);
+      fx.spinners.push(sails);
+    }
+    if (st >= 4) {
+      cyl(g, 0.8, 0.8, 1.6, 10, -3.6, 0.8, -0.4, mats.stoneWall);
+      cone(g, 1.0, 0.8, 10, -3.6, 2.0, -0.4, mats.terracottaRoof);
+    }
+    return { top: 3.4, badge: [0, 2.8] };
+  };
+
+  // Timber Mill: huts and growing log piles
+  MODELS.LUMBER = function (g, mats, st, fx) {
+    thatchHall(g, mats, 3.0, 2.2, -0.8, -0.8, 0);
+    var piles = 1 + st;
+    for (var p = 0; p < piles; p++) {
+      var bx = 1.6, bz = -1.6 + p * 1.0;
+      for (var l = 0; l < 3; l++) {
+        var log = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 1.8, 8), mats.timber);
+        log.rotation.z = Math.PI / 2;
+        log.position.set(bx, 0.2 + (l === 2 ? 0.34 : 0), bz + (l === 2 ? 0 : (l - 0.5) * 0.4));
+        g.add(shadowed(log));
+      }
+    }
+    if (st >= 2) {
+      cyl(g, 0.45, 0.5, 0.5, 8, -1.8, 0.25, 1.6, mats.timberLight);
+      box(g, 1.4, 0.3, 0.8, -0.4, 0.5, 1.8, mats.timberLight);
+    }
+    if (st >= 3) thatchHut(g, mats, -2.6, 0, 1.2, 0.8);
+    if (st >= 4) {
+      box(g, 0.2, 2.6, 0.2, 2.8, 1.3, 1.2, mats.timber);
+      box(g, 1.8, 0.16, 0.16, 2.2, 2.5, 1.2, mats.timberLight);
+    }
+    return { top: 3.0, badge: [0, 2.8] };
+  };
+
+  // Quarry: a cliff that gets cut deeper, with a crane at higher levels
+  MODELS.QUARRY = function (g, mats, st, fx) {
+    var rock = new THREE.Mesh(new THREE.DodecahedronGeometry(2.6, 0), mats.rockGrey);
+    rock.position.set(0.6, 1.5, -1.5);
+    rock.scale.set(1.3, 1, 1);
+    g.add(shadowed(rock));
+    for (var t = 0; t < st; t++) {
+      box(g, 3.6 - t * 0.6, 0.5, 1.0, 0.4, 0.25 + t * 0.5, -0.2 - t * 0.6, mats.flagstoneTop);
+    }
+    for (var b = 0; b < st + 1; b++) {
+      box(g, 0.7, 0.5, 0.7, -1.8 + b * 0.8, 0.25, 1.8, mats.flagstoneTop);
+    }
+    if (st >= 2) {
+      box(g, 1.2, 0.5, 0.9, 1.9, 0.4, 1.6, mats.timber);
+      cyl(g, 0.3, 0.3, 0.12, 10, 1.4, 0.3, 2.1, mats.timber).rotation.x = Math.PI / 2;
+    }
+    if (st >= 3) {
+      box(g, 0.2, 3.6, 0.2, -2.4, 1.8, 0.2, mats.timber);
+      var jib = box(g, 2.6, 0.16, 0.16, -1.3, 3.5, 0.2, mats.timberLight);
+      jib.rotation.z = -0.15;
+    }
+    if (st >= 4) adobeHouse(g, mats, 2.0, 1.6, 1.8, -2.6, -2.0, 0.2, true);
+    return { top: 4.0, badge: [0, 2.8] };
+  };
+
+  // Gold Mint: a pillared treasury that gains a golden dome
+  MODELS.MINT = function (g, mats, st, fx) {
+    box(g, 4.2, 0.5, 3.6, 0, 0.25, 0, mats.flagstoneTop);
+    box(g, 3.2, 2.6, 2.4, 0, 1.8, -0.3, mats.stoneKeep);
+    pilasters(g, 2.8, 2.6, 0, 1.8, 0.9, mats.stoneWall, 3);
+    box(g, 3.6, 0.3, 2.8, 0, 3.25, -0.3, mats.flagstoneTop);
+    for (var i = 0; i < st; i++) {
+      box(g, 0.5, 0.22, 0.3, -1.2 + i * 0.5, 0.62, 1.3, mats.goldIngot);
+      box(g, 0.5, 0.22, 0.3, -1.0 + i * 0.5, 0.84, 1.3, mats.goldIngot);
+    }
+    if (st >= 2) {
+      for (var c = 0; c < 4; c++) cyl(g, 0.16, 0.18, 2.6, 8, -1.2 + c * 0.8, 1.8, 1.25, mats.marble);
+      box(g, 3.4, 0.3, 0.5, 0, 3.15, 1.25, mats.marble);
+    }
+    if (st >= 3) {
+      var dome = new THREE.Mesh(new THREE.SphereGeometry(1.1, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), mats.templeGold);
+      dome.position.set(0, 3.4, -0.3);
+      g.add(dome);
+    }
+    if (st >= 4) {
+      [-2.2, 2.2].forEach(function (ox) {
+        box(g, 0.45, 3.2, 0.45, ox, 1.6, 1.4, mats.stoneKeep);
+        cone(g, 0.3, 0.5, 4, ox, 3.45, 1.4, mats.templeGold, Math.PI / 4);
+      });
+    }
+    return { top: 4.8, badge: [0, 2.6] };
+  };
+
+  // Where each building sits in the new layout, and which way its front faces
+  var LAYOUT = {
+    KEEP: { x: 3.8, z: -10.6, ry: 0 },
+    ALLIANCE_HALL: { x: -6.4, z: -11.4, ry: 0 },
+    BARRACKS: { x: 8.7, z: 1.4, ry: -Math.PI / 2 },
+    ARCHERY: { x: -7.0, z: 9.8, ry: 0 },
+    SIEGE: { x: 4.0, z: 7.6, ry: 0 },
+    STABLES: { x: 7.4, z: 13.6, ry: 0 },
+    FARM: { x: 18.0, z: 8.0, ry: -0.2 },
+    LUMBER: { x: -7.5, z: 26.0, ry: 0.15 },
+    QUARRY: { x: 20.0, z: -13.0, ry: -0.3 },
+    MINT: { x: 19.0, z: -1.5, ry: -Math.PI / 2 }
+  };
+
+  var bState = null;
+
+  function rebuildBuilding(key, stage) {
+    var entry = bState && bState.entries[key];
+    if (!entry || entry.stage === stage) return;
+    var pick = bState.pickables;
+    for (var i = pick.length - 1; i >= 0; i--) {
+      if (pick[i].userData.buildingKey === key) pick.splice(i, 1);
+    }
+    while (entry.content.children.length) entry.content.remove(entry.content.children[0]);
+    var fx = { flames: [], smoke: [], spinners: [] };
+    var dims = MODELS[key](entry.content, bState.mats, stage, fx);
+    entry.content.traverse(function (obj) {
+      if (obj.isMesh) {
+        obj.userData.buildingKey = key;
+        pick.push(obj);
       }
     });
-
-    // summit shrine
-    box(group, 2.6, 2.1, 2.6, 0, top + 1.05, 0, mats.stoneWall);
-    box(group, 3.0, 0.3, 3.0, 0, top + 2.25, 0, mats.flagstoneTop);
-    var door = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.3, 0.1), new THREE.MeshBasicMaterial({ color: 0x120c08 }));
-    door.position.set(0, top + 0.65, 1.31);
-    group.add(door);
-    var cap = new THREE.Mesh(new THREE.ConeGeometry(1.25, 1.4, 4), mats.templeGold);
-    cap.position.set(0, top + 3.1, 0);
-    cap.rotation.y = Math.PI / 4;
-    group.add(shadowed(cap));
-
-    // braziers on the summit corners
-    [[-1, 1], [1, 1], [-1, -1], [1, -1]].forEach(function (c) {
-      var bx = c[0] * (topHw - 0.3), bz = c[1] * (topHw - 0.3);
-      var bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.18, 0.4, 8), mats.templeGold);
-      bowl.position.set(bx, top + 0.4, bz);
-      group.add(bowl);
-      var flame = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.7, 7), mats.brazierFlame);
-      flame.position.set(bx, top + 0.95, bz);
-      group.add(flame);
-      flames.push(flame);
+    entry.flames = fx.flames;
+    entry.spinners = fx.spinners;
+    var gp = entry.info.group.position;
+    var ry = entry.info.group.rotation.y;
+    var bx = dims.badge[0], bz = dims.badge[1];
+    var wx = bx * Math.cos(ry) + bz * Math.sin(ry);
+    var wz = -bx * Math.sin(ry) + bz * Math.cos(ry);
+    entry.info.baseAnchor.set(gp.x + wx, 0.2, gp.z + wz);
+    entry.info.peakAnchor.set(gp.x, dims.top, gp.z);
+    entry.smoke = fx.smoke.map(function (v) {
+      return v.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), ry).add(gp);
     });
-    var light = new THREE.PointLight(0xffa040, 1.1, 14);
-    light.position.set(0, top + 2, 1.5);
-    group.add(light);
-
-    // carved pylons flanking the stair base
-    [-1.9, 1.9].forEach(function (px) {
-      box(group, 0.9, 3.4, 0.9, px, 1.7, zStart - 0.2, mats.stoneKeep);
-      var tip = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.7, 4), mats.templeGold);
-      tip.position.set(px, 3.75, zStart - 0.2);
-      tip.rotation.y = Math.PI / 4;
-      group.add(tip);
-    });
-    return { top: top, front: zStart };
+    entry.stage = stage;
+    refreshSmoke();
   }
 
-  function tiersForLevel(level) {
-    var l = Math.max(1, Number(level) || 1);
-    if (l >= 15) return 7;
-    if (l >= 10) return 6;
-    if (l >= 5) return 5;
-    return 4;
+  function refreshSmoke() {
+    if (!bState || !bState.smokeOrigins) return;
+    var spots = [];
+    Object.keys(bState.entries).forEach(function (k) {
+      (bState.entries[k].smoke || []).forEach(function (v) { spots.push(v); });
+    });
+    bState.smokeOrigins.forEach(function (origin, i) {
+      if (spots[i]) origin.copy(spots[i]);
+      else origin.set(0, -60, 0); // park unused smoke underground
+    });
   }
 
-  var keepState = null;
+  window.CROWNFALL_DOMINION = true;
 
   var origBuildings = window.buildCitadelBuildings;
   window.buildCitadelBuildings = function (scene, mats) {
     var result = origBuildings(scene, mats);
-    var keep = result.buildings.KEEP;
-    if (!keep) return result;
+    bState = { mats: mats, pickables: result.pickables, entries: {}, smokeOrigins: result.animRefs.smokeOrigins };
 
-    // Move the keep slightly forward so the larger ziggurat clears the north wall.
-    keep.group.position.set(0.4, 0, -13.2);
-
-    // Remove the old round keep (keep the selection ring and ground shadow).
-    var toRemove = [];
-    keep.group.children.forEach(function (child) {
-      if (!child.userData || !child.userData.nonPickable) toRemove.push(child);
+    Object.keys(LAYOUT).forEach(function (key) {
+      var info = result.buildings[key];
+      if (!info || !MODELS[key]) return;
+      var spot = LAYOUT[key];
+      info.group.position.set(spot.x, terrainHeight(spot.x, spot.z), spot.z);
+      info.group.rotation.y = spot.ry;
+      var old = [];
+      info.group.children.forEach(function (child) {
+        if (!child.userData || !child.userData.nonPickable) old.push(child);
+      });
+      old.forEach(function (child) { info.group.remove(child); });
+      var content = new THREE.Group();
+      info.group.add(content);
+      bState.entries[key] = { info: info, content: content, stage: 0, flames: [], spinners: [], smoke: [] };
+      rebuildBuilding(key, 1);
     });
-    toRemove.forEach(function (child) { keep.group.remove(child); });
-    for (var i = result.pickables.length - 1; i >= 0; i--) {
-      if (result.pickables[i].userData.buildingKey === "KEEP") result.pickables.splice(i, 1);
-    }
 
-    var content = new THREE.Group();
-    keep.group.add(content);
-    keepState = { keep: keep, content: content, mats: mats, pickables: result.pickables, tiers: 0, flames: [] };
-    rebuildKeep(4);
+    // Guards now patrol the new wall tops
+    var y = WALL.h + 0.22;
+    var routes = [
+      [[-9, -18], [9, -18]], [[12, -15], [12, 15]], [[-12, -15], [-12, -5]], [[5, 18], [10, 18]]
+    ];
+    (result.animRefs.guards || []).forEach(function (gd, i) {
+      var r = routes[i % routes.length];
+      gd.a.set(r[0][0], y, r[0][1]);
+      gd.b.set(r[1][0], y, r[1][1]);
+    });
 
     updaters.push(function (dt, t) {
-      for (var f = 0; f < keepState.flames.length; f++) {
-        var fl = keepState.flames[f];
-        var s = 0.85 + Math.sin(t * 9 + f * 1.7) * 0.15 + Math.sin(t * 23 + f) * 0.06;
-        fl.scale.set(1, s, 1);
-      }
+      Object.keys(bState.entries).forEach(function (k) {
+        var en = bState.entries[k];
+        for (var f = 0; f < en.flames.length; f++) {
+          en.flames[f].scale.set(1, 0.85 + Math.sin(t * 9 + f * 1.7) * 0.15, 1);
+        }
+        for (var s = 0; s < en.spinners.length; s++) en.spinners[s].rotation.z -= dt * 1.2;
+      });
     });
     return result;
   };
 
-  function rebuildKeep(tiers) {
-    if (!keepState || keepState.tiers === tiers) return;
-    var st = keepState;
-    // drop old meshes from the tap list
-    for (var i = st.pickables.length - 1; i >= 0; i--) {
-      if (st.pickables[i].userData.buildingKey === "KEEP") st.pickables.splice(i, 1);
-    }
-    while (st.content.children.length) st.content.remove(st.content.children[0]);
-    st.flames = [];
-    var dims = buildZiggurat(st.content, st.mats, tiers, st.flames);
-    st.content.traverse(function (obj) {
-      if (obj.isMesh) {
-        obj.userData.buildingKey = "KEEP";
-        st.pickables.push(obj);
-      }
-    });
-    var gp = st.keep.group.position;
-    st.keep.baseAnchor.set(gp.x, 0.2, gp.z + dims.front + 0.4);
-    st.keep.peakAnchor.set(gp.x, dims.top + 3.5, gp.z);
-    st.tiers = tiers;
-  }
-
-  // Hook Kotlin state updates so the ziggurat grows with Keep level.
+  // Grow buildings when Kotlin sends new levels. app.js defines initCitadelDiorama,
+  // and this file loads after it, so wrap it here.
   var origInit = window.initCitadelDiorama;
   window.initCitadelDiorama = function () {
     origInit();
@@ -725,8 +1411,10 @@
     api.updateState = function (state) {
       origUpdate(state);
       try {
-        var k = state && state.buildings && state.buildings.KEEP;
-        if (k) rebuildKeep(tiersForLevel(k.level));
+        var bmap = (state && state.buildings) || {};
+        Object.keys(bmap).forEach(function (key) {
+          rebuildBuilding(key, stageFor(bmap[key].level));
+        });
       } catch (e) { /* never break the UI over decoration */ }
     };
   };

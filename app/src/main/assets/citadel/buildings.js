@@ -288,7 +288,7 @@
     // COURTYARD SIGNATURE PROPS (Circular Sky-Blue Fountain + Red/Canvas Market Stalls + Well)
     (function addCourtyardLandmarks() {
       var ft = new THREE.Group();
-      ft.position.set(-3.2, 0, -5.8);
+      if (window.CROWNFALL_DOMINION) ft.position.set(-2.0, 0, -1.2); else ft.position.set(-3.2, 0, -5.8);
       addContactShadow(ft, 4.4, 4.4, mats.contactAoRound, 0, 0);
       addMesh(ft, new THREE.CylinderGeometry(1.45, 1.58, 0.48, 20), mats.stoneWall, 0, 0.24, 0);
       addMesh(ft, new THREE.CylinderGeometry(1.22, 1.22, 0.38, 20), mats.fountainWater, 0, 0.32, 0);
@@ -322,6 +322,7 @@
         });
         scene.add(s);
       }
+      if (window.CROWNFALL_DOMINION) return; // the Dominion layout has its own market outside the walls
       addStall(-0.4, 2.0, 1.9, 1.7, mats.awningCanvas, 0.06);
       addStall(1.5, 4.9, 2.2, 2.0, mats.awningRed, -0.08);
       addStall(-0.9, 6.7, 2.0, 1.8, mats.awningCanvas, 0.04);

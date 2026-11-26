@@ -12,21 +12,21 @@
   "use strict";
 
   var ASSET = "https://citadel.crownfall.local/assets/painted/";
-  var W = 1024, H = 1024;
+  var W = 2048, H = 2048;
 
   // World coordinates are background pixels. `x, y` is the ground point under the
   // building (bottom-centre of its picture); `w` is the picture width per stage.
   var BUILDINGS = {
-    KEEP: { label: "Obsidian Keep", x: 395, y: 505, sprites: ["keep_1.webp", "keep_2.webp", "keep_3.webp", "keep_4.webp"], w: [220, 236, 246, 252] },
-    ALLIANCE_HALL: { label: "Alliance Hall", x: 700, y: 330, r: 110 },
-    BARRACKS: { label: "War Barracks", x: 655, y: 545, r: 70 },
-    ARCHERY: { label: "Ashbow Range", x: 178, y: 400, r: 60 },
-    SIEGE: { label: "Siege Foundry", x: 455, y: 680, r: 45 },
-    STABLES: { label: "Dread Stables", x: 795, y: 670, r: 50 },
-    FARM: { label: "Farmstead", x: 730, y: 790, r: 55, resource: "FOOD" },
-    LUMBER: { label: "Timber Mill", x: 470, y: 980, r: 60, resource: "TIMBER" },
-    QUARRY: { label: "Quarry", x: 255, y: 860, r: 55, resource: "STONE" },
-    MINT: { label: "Gold Mint", x: 945, y: 600, r: 45, resource: "GOLD" }
+    KEEP: { label: "Obsidian Keep", x: 1030, y: 790, sprites: ["keep_1.webp", "keep_2.webp", "keep_3.webp", "keep_4.webp"], w: [360, 400, 420, 440], flames: [[0.33, 0.25], [0.62, 0.25], [0.45, 0.33]] },
+    ALLIANCE_HALL: { label: "Alliance Hall", x: 460, y: 1060, r: 90 },
+    BARRACKS: { label: "War Barracks", x: 1520, y: 1080, r: 90 },
+    ARCHERY: { label: "Ashbow Range", x: 660, y: 1290, r: 80 },
+    SIEGE: { label: "Siege Foundry", x: 960, y: 1450, r: 80 },
+    STABLES: { label: "Dread Stables", x: 1290, y: 1290, r: 80 },
+    FARM: { label: "Farmstead", x: 1800, y: 1330, r: 100, resource: "FOOD" },
+    LUMBER: { label: "Timber Mill", x: 840, y: 1810, r: 110, resource: "TIMBER" },
+    QUARRY: { label: "Quarry", x: 170, y: 1210, r: 90, resource: "STONE" },
+    MINT: { label: "Gold Mint", x: 1540, y: 1450, r: 90, resource: "GOLD" }
   };
   var KEYS = Object.keys(BUILDINGS);
   var DOT = { FOOD: "#e8b04a", TIMBER: "#6fae5c", STONE: "#b8b6ae", GOLD: "#ffd95c" };
@@ -169,41 +169,41 @@
     return d;
   }
 
-  // lava glow along the river and in the craters
-  [[70, 420, 70], [110, 510, 80], [175, 610, 80], [235, 700, 70], [300, 800, 80], [350, 880, 90], [250, 930, 90],
-   [150, 950, 70], [38, 190, 90], [62, 690, 80], [32, 240, 60]].forEach(function (p, i) {
+  // lava glow: west lava field, the north-east river and the volcano craters
+  [[120, 940, 220], [260, 800, 200], [420, 720, 180], [80, 1060, 160], [500, 640, 150], [180, 680, 160],
+   [1120, 400, 170], [1300, 300, 170], [1480, 200, 160], [1640, 90, 150], [980, 470, 150],
+   [260, 330, 120], [430, 190, 110], [1010, 110, 110], [1150, 120, 90]].forEach(function (p, i) {
     fx("glow", p[0] - p[2] / 2, p[1] - p[2] / 2, {
       width: p[2] + "px", height: p[2] + "px", "animation-delay": (i * 0.37) + "s"
     });
   });
   // embers drifting up from the lava
-  for (var e = 0; e < 26; e++) {
-    var t = e / 26;
-    var ex = 60 + t * 300 + Math.sin(e * 3.1) * 25;
-    var ey = 420 + t * 520 + Math.cos(e * 2.3) * 20;
-    fx("ember", ex, ey, {
-      "--dx": (Math.sin(e) * 18).toFixed(0) + "px",
+  for (var e = 0; e < 40; e++) {
+    var lavaPts = [[120, 940], [260, 800], [420, 720], [500, 640], [1120, 400], [1300, 300], [1480, 200]];
+    var lp = lavaPts[e % lavaPts.length];
+    fx("ember", lp[0] + Math.sin(e * 3.1) * 70, lp[1] + Math.cos(e * 2.3) * 40, {
+      "--dx": (Math.sin(e) * 24).toFixed(0) + "px",
       "animation-duration": (2.2 + (e % 5) * 0.5) + "s",
       "animation-delay": (-(e * 0.41) % 3) + "s"
     });
   }
   // volcano smoke
-  [[30, 150], [55, 660]].forEach(function (v, vi) {
-    for (var s = 0; s < 4; s++) {
-      fx("smoke", v[0] - 17, v[1] - 13, { "animation-delay": (-(s * 1.75 + vi * 0.9)) + "s" });
+  [[260, 320], [430, 180], [1010, 100], [1150, 110], [130, 600]].forEach(function (v, vi) {
+    for (var s2 = 0; s2 < 4; s2++) {
+      fx("smoke", v[0] - 17, v[1] - 13, { "animation-delay": (-(s2 * 1.75 + vi * 0.9)) + "s" });
     }
   });
   // drifting cloud wisps around the sky palace
-  [[150, 160, 160, 50], [300, 210, 140, 40], [230, 110, 120, 36]].forEach(function (c, i) {
+  [[620, 300, 260, 80], [860, 380, 220, 70], [700, 160, 200, 60]].forEach(function (c, i) {
     fx("wisp", c[0], c[1], { width: c[2] + "px", height: c[3] + "px", "animation-delay": (-i * 7) + "s" });
   });
-  // sparkles on water and the fountain
-  [[800, 140], [830, 165], [860, 128], [490, 525], [480, 535], [870, 990], [910, 1005], [30, 990]].forEach(function (p, i) {
+  // sparkles on the fountain, rivers and lakes
+  [[1020, 930], [1000, 950], [1760, 500], [1900, 470], [1930, 1120], [160, 1700], [300, 1760], [1700, 1780], [1820, 1860], [1100, 1990]].forEach(function (p, i) {
     fx("sparkle", p[0], p[1], { "animation-delay": (i * 0.53) + "s" });
   });
   // a flock of birds crossing now and then
-  for (var b2 = 0; b2 < 4; b2++) {
-    fx("bird", -60 - b2 * 18, 460 + b2 * 9, { "animation-duration": "26s", "animation-delay": (-(b2 * 0.6)) + "s" });
+  for (var b2 = 0; b2 < 5; b2++) {
+    fx("bird", -60 - b2 * 22, 900 + b2 * 12, { "animation-duration": "30s", "animation-delay": (-(b2 * 0.6)) + "s" });
   }
   // flickering fire on the keep's summit braziers (shown at its final stage)
   var keepFlames = [];
@@ -211,11 +211,11 @@
     keepFlames.forEach(function (f) { if (f.parentNode) f.parentNode.removeChild(f); });
     keepFlames = [];
     if (stage < 4) return;
-    var b = BUILDINGS.KEEP;
+    var b = BUILDINGS.KEEP, n = nodes.KEEP;
     var w = b.w[3];
-    // flame positions as fractions of the stage-4 picture (x from left, y from top)
-    [[0.36, 0.08], [0.61, 0.08], [0.29, 0.2], [0.68, 0.2], [0.21, 0.33], [0.76, 0.33], [0.5, 0.2]].forEach(function (f, i) {
-      var h = w * (691 / 640);
+    var ratio = n.img.naturalWidth ? n.img.naturalHeight / n.img.naturalWidth : 0.99;
+    var h = w * ratio;
+    b.flames.forEach(function (f, i) {
       keepFlames.push(fx("flame-glow", b.x - w / 2 + f[0] * w - 8, b.y - h + f[1] * h - 8, { "animation-delay": (i * 0.07) + "s" }));
     });
   }
@@ -225,7 +225,7 @@
   var cam = { z: 1, tx: 0, ty: 0 };
   var minZ = 1, maxZ = 3;
   var target = null; // smooth zoom target
-  var DEFAULT_FOCUS = { x: 470, y: 520 };
+  var DEFAULT_FOCUS = { x: 1000, y: 920 };
 
   function screenSize() { return { w: viewport.clientWidth || window.innerWidth, h: viewport.clientHeight || window.innerHeight }; }
 
@@ -267,12 +267,12 @@
   function resetLimits() {
     var s = screenSize();
     minZ = Math.max(s.w / W, s.h / H);
-    maxZ = minZ * 3.2;
+    maxZ = minZ * 4;
   }
 
   function recenter() {
     resetLimits();
-    focusOn(DEFAULT_FOCUS.x, DEFAULT_FOCUS.y, minZ * 1.35);
+    focusOn(DEFAULT_FOCUS.x, DEFAULT_FOCUS.y, minZ * 1.25);
   }
 
   var pointers = {};
@@ -381,7 +381,7 @@
           var st = stageFor(data.level);
           if (st !== n.stage) {
             setStage(key, st);
-            if (key === "KEEP") updateKeepFlames(st);
+            if (key === "KEEP") { if (n.img.complete) updateKeepFlames(st); else n.img.addEventListener("load", function () { updateKeepFlames(st); }, { once: true }); }
           }
         }
         if (n.hit) n.hit.classList.toggle("selected", isSel);

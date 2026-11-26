@@ -22,7 +22,7 @@
     BARRACKS: { label: "War Barracks", x: 1395, y: 1085, sprites: ["barracks_1.webp", "barracks_2.webp", "barracks_3.webp", "barracks_4.webp"], w: [210, 245, 265, 285] },
     ARCHERY: { label: "Ashbow Range", x: 730, y: 1255, sprites: ["archery_1.webp", "archery_2.webp", "archery_3.webp", "archery_4.webp"], w: [180, 230, 240, 250] },
     SIEGE: { label: "Siege Foundry", x: 960, y: 1450, r: 80 },
-    STABLES: { label: "Dread Stables", x: 1290, y: 1290, r: 80 },
+    STABLES: { label: "Dread Stables", x: 1150, y: 1330, sprites: ["stables_1.webp", "stables_2.webp", "stables_3.webp", "stables_4.webp"], w: [250, 250, 265, 275] },
     FARM: { label: "Farmstead", x: 1800, y: 1330, r: 100, resource: "FOOD" },
     LUMBER: { label: "Timber Mill", x: 840, y: 1810, r: 110, resource: "TIMBER" },
     QUARRY: { label: "Quarry", x: 170, y: 1210, r: 90, resource: "STONE" },

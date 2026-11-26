@@ -268,16 +268,22 @@
       var t = new THREE.Group();
       t.position.set(x, 0, z);
       addContactDecal(t, r * 3.1, r * 3.1, 0, 0.082, 0, mats.contactAoRound);
-      var body = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.07, h, 20), mats.stoneKeep);
+      // Tapered carved pylon tower (square, slightly battered walls)
+      var body = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.92, r * 1.25, h, 4), mats.stoneKeep);
+      body.rotation.y = Math.PI / 4;
       body.position.y = h * 0.5;
       t.add(enableShadow(body));
-      var rim = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.15, r * 1.08, 0.65, 20), mats.stoneWall);
+      var rim = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.08, r * 0.96, 0.55, 4), mats.flagstoneTop);
+      rim.rotation.y = Math.PI / 4;
       rim.position.y = h + 0.2;
       t.add(enableShadow(rim));
       if (hasConicalRoof) {
-        var cone = new THREE.Mesh(new THREE.ConeGeometry(r * 1.34, h * 0.42, 20), mats.turretRoof);
-        cone.position.y = h + 0.5 + h * 0.21;
-        t.add(enableShadow(cone));
+        var bowl = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.35, r * 0.22, 0.45, 8), mats.goldIngot);
+        bowl.position.y = h + 0.7;
+        t.add(bowl);
+        var fire = new THREE.Mesh(new THREE.ConeGeometry(r * 0.26, r * 0.7, 7), mats.forgeEmber);
+        fire.position.y = h + 1.15 + r * 0.2;
+        t.add(fire);
       }
       wallGroup.add(t);
     }
@@ -355,7 +361,10 @@
       [25.8, 8.2, 1.2], [11.5, 20.5, 1.05], [7.8, 22.4, 1.15],
       [-12.0, -25.0, 1.2], [-6.5, -24.5, 1.1], [14.0, -25.5, 1.25], [22.8, -22.5, 1.15]
     ];
-    pines.forEach(function (pt) { addPine(pt[0], pt[1], pt[2]); });
+    pines.forEach(function (pt) {
+      if (pt[0] < -21.5 && Math.abs(pt[1]) < 30) return; // lava fields now
+      addPine(pt[0], pt[1], pt[2]);
+    });
 
     var bushes = [
       // Courtyard accents tucked near walls & fountain

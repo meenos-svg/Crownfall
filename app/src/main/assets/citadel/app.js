@@ -37,15 +37,15 @@
       36,
       window.innerWidth / Math.max(1, window.innerHeight),
       0.5,
-      240
+      320
     );
 
     // Default framing highlights all 6 inner courtyard structures with surrounding outer estates visible at edges
-    var DEFAULT_TARGET = new THREE.Vector3(0.4, 0.0, -0.6);
-    var DEFAULT_ZOOM = 0.88;
+    var DEFAULT_TARGET = new THREE.Vector3(0.4, 0.0, -3.0);
+    var DEFAULT_ZOOM = 1.1;
     var MIN_ZOOM = 0.50;
-    var MAX_ZOOM = 1.65;
-    var BASE_OFFSET = new THREE.Vector3(-2.6, 40.5, 30.5);
+    var MAX_ZOOM = 2.1;
+    var BASE_OFFSET = new THREE.Vector3(-2.6, 32.0, 36.0);
 
     var target = DEFAULT_TARGET.clone();
     var desiredTarget = DEFAULT_TARGET.clone();
@@ -53,8 +53,8 @@
     var desiredZoom = DEFAULT_ZOOM;
 
     function clampTarget(v) {
-      v.x = Math.max(-18.5, Math.min(20.5, v.x));
-      v.z = Math.max(-18.5, Math.min(19.5, v.z));
+      v.x = Math.max(-26.0, Math.min(24.0, v.x));
+      v.z = Math.max(-24.0, Math.min(24.0, v.z));
       v.y = 0;
     }
 

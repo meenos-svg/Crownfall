@@ -193,12 +193,13 @@
   <div id="overlay-layer"></div>
   <div id="loader">
     <div class="spinner"></div>
-    <div id="loader-text">Sculpting 3D Citadel Diorama…</div>
+    <div id="loader-text">Raising the Obsidian Dominion…</div>
   </div>
 
   <script>
     (function loadThreeAndBoot() {
       var urls = [
+        "https://citadel.crownfall.local/assets/three.min.js",
         "https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js",
         "https://unpkg.com/three@0.149.0/build/three.min.js"
       ];
@@ -223,7 +224,8 @@
           "https://citadel.crownfall.local/assets/textures.js",
           "https://citadel.crownfall.local/assets/world.js",
           "https://citadel.crownfall.local/assets/buildings.js",
-          "https://citadel.crownfall.local/assets/app.js"
+          "https://citadel.crownfall.local/assets/app.js",
+          "https://citadel.crownfall.local/assets/ancient.js"
         ];
         var i = 0;
         function nextLocal() {

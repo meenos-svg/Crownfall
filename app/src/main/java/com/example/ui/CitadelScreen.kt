@@ -95,6 +95,8 @@ private val ALLOWED_LOCAL_ASSETS = mapOf(
     "textures.js" to "application/javascript",
     "world.js" to "application/javascript",
     "buildings.js" to "application/javascript",
+    "ancient.js" to "application/javascript",
+    "three.min.js" to "application/javascript",
     "app.js" to "application/javascript"
 )
 

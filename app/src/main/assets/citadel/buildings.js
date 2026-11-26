@@ -40,10 +40,23 @@
 
     addMesh(g, new THREE.BoxGeometry(w + 0.16, 0.55, d + 0.16), wallMat.plinth || wallMat, 0, 0.275, 0);
     addMesh(g, new THREE.BoxGeometry(w, h, d), wallMat.wall || wallMat, 0, 0.55 + h * 0.5, 0);
-    var roof = createPitchedRoof(w + 0.58, roofH, d + 0.52, roofMat);
-    roof.position.set(0, 0.55 + h - 0.04, 0);
-    g.add(roof);
-    addMesh(g, new THREE.BoxGeometry(0.18, 0.2, d + 0.62), timberMat, 0, 0.55 + h + roofH - 0.04, 0);
+    if (roofMat && roofMat.userData && roofMat.userData.pitched) {
+      // Thatched roofs keep their pitched shape
+      var roof = createPitchedRoof(w + 0.58, roofH, d + 0.52, roofMat);
+      roof.position.set(0, 0.55 + h - 0.04, 0);
+      g.add(roof);
+      addMesh(g, new THREE.BoxGeometry(0.18, 0.2, d + 0.62), timberMat, 0, 0.55 + h + roofH - 0.04, 0);
+    } else {
+      // Flat sun-baked roof with a low parapet and a small rooftop room
+      var topY = 0.55 + h;
+      addMesh(g, new THREE.BoxGeometry(w + 0.24, 0.18, d + 0.24), roofMat, 0, topY + 0.09, 0);
+      addMesh(g, new THREE.BoxGeometry(w + 0.24, 0.32, 0.16), wallMat.wall || wallMat, 0, topY + 0.34, (d + 0.24) / 2);
+      addMesh(g, new THREE.BoxGeometry(w + 0.24, 0.32, 0.16), wallMat.wall || wallMat, 0, topY + 0.34, -(d + 0.24) / 2);
+      addMesh(g, new THREE.BoxGeometry(0.16, 0.32, d + 0.24), wallMat.wall || wallMat, (w + 0.24) / 2, topY + 0.34, 0);
+      addMesh(g, new THREE.BoxGeometry(0.16, 0.32, d + 0.24), wallMat.wall || wallMat, -(w + 0.24) / 2, topY + 0.34, 0);
+      addMesh(g, new THREE.BoxGeometry(w * 0.42, roofH * 0.55, d * 0.4), wallMat.wall || wallMat, -w * 0.18, topY + 0.18 + roofH * 0.275, -d * 0.15);
+      addMesh(g, new THREE.BoxGeometry(w * 0.46, 0.12, d * 0.44), timberMat, -w * 0.18, topY + 0.18 + roofH * 0.55 + 0.06, -d * 0.15);
+    }
 
     parent.add(g);
     return g;
@@ -216,7 +229,7 @@
     });
 
     // 4. ASHBOW RANGE
-    registerBuilding("ARCHERY", "Ashbow Range", null, 1.2, -6.2, 3.4, 6.2, 3.5, 7.6, 7.4, function (g) {
+    registerBuilding("ARCHERY", "Ashbow Range", null, 2.0, -4.6, 3.4, 6.2, 3.5, 7.6, 7.4, function (g) {
       addMedievalHouse(g, 3.0, 2.6, 3.6, 2.0, houseMats, mats.slateRoof, mats.timber, -0.5, 0, -0.7, -0.08);
       addMesh(g, new THREE.BoxGeometry(2.6, 0.16, 2.0), mats.terracottaRoof, 1.6, 1.85, 0.4, 0, 0, -0.22);
       [[0.6, 1.2], [2.5, 1.2], [0.6, -0.4], [2.5, -0.4]].forEach(function (p) {

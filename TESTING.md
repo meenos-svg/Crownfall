@@ -43,6 +43,7 @@ Most need a second Google account (a friend or a second phone).
 - [ ] Coloured pennant on each castle: gold you, blue alliance, red others; green dome when shielded
 - [ ] Shadow Bastions are the purple ruin; the Obsidian Citadel is the volcano fortress
 - [ ] Strongholds use the painted fortress with siege ring, aid beacon and wall bar still showing
+- [ ] Landmarks (mine, quarry, lumberyard, granary, shrine), resource sites and visitor camps are painted too
 
 ## Citadel
 - [ ] Chimney smoke and building colours look right on your phone

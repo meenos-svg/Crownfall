@@ -277,7 +277,11 @@ fun RealmMapScreen(
     // Painted map sprites (assets/mapsprites); the drawn icons stay as a fallback.
     val sprites by produceState<Map<String, ImageBitmap>>(initialValue = emptyMap()) {
         value = withContext(Dispatchers.IO) {
-            listOf("castle1", "castle2", "castle3", "stronghold", "bastion", "obsidian").mapNotNull { name ->
+            listOf(
+                "castle1", "castle2", "castle3", "stronghold", "bastion", "obsidian", "camp",
+                "lm_mine", "lm_quarry", "lm_lumber", "lm_farm", "lm_shrine",
+                "res_food", "res_timber", "res_stone", "res_gold"
+            ).mapNotNull { name ->
                 runCatching {
                     appContext.assets.open("mapsprites/$name.webp").use { BitmapFactory.decodeStream(it)?.asImageBitmap() }
                 }.getOrNull()?.let { name to it }
@@ -516,7 +520,14 @@ fun RealmMapScreen(
                         ResourceType.GOLD -> GoldCoin
                         null -> ArcaneEmerald
                     }
-                    drawResourceSite(pos, markerS * 0.62f, node.resourceType, resColor)
+                    val resSprite = sprites[when (node.resourceType) {
+                        ResourceType.FOOD -> "res_food"
+                        ResourceType.TIMBER -> "res_timber"
+                        ResourceType.STONE -> "res_stone"
+                        else -> "res_gold"
+                    }]
+                    if (resSprite != null) drawMapSprite(resSprite, pos, markerS * 2.7f, anchorY = 0.62f)
+                    else drawResourceSite(pos, markerS * 0.62f, node.resourceType, resColor)
                 }
             }
 
@@ -524,10 +535,22 @@ fun RealmMapScreen(
             landmarksHere.forEach { lm ->
                 val pos = worldToScreen(lm.coordX, lm.coordY, canvasSize)
                 val holder = if (lm.isHeld) zoneColor(lm.holderAllianceId) else null
-                drawLandmark(pos, markerS * 0.95f, lm.kind, holder)
+                val lmSprite = sprites[when (lm.kind) {
+                    "MINE" -> "lm_mine"
+                    "QUARRY" -> "lm_quarry"
+                    "LUMBER" -> "lm_lumber"
+                    "FARM" -> "lm_farm"
+                    else -> "lm_shrine"
+                }]
+                if (lmSprite != null) {
+                    val box = drawMapSprite(lmSprite, pos, markerS * 3.6f, anchorY = 0.62f)
+                    if (holder != null) drawPennant(Offset(box.right - box.width * 0.18f, box.top + box.height * 0.35f), markerS * 0.65f, holder)
+                } else {
+                    drawLandmark(pos, markerS * 0.95f, lm.kind, holder)
+                }
                 if (showLabels) {
                     val label = if (lm.isHeld) "${lm.name} [${lm.holderTag}]" else lm.name
-                    drawMapLabel(textMeasurer, label, Offset(pos.x, pos.y + markerS * 0.9f), holder ?: ParchmentIvory)
+                    drawMapLabel(textMeasurer, label, Offset(pos.x, pos.y + markerS * (if (sprites.isEmpty()) 0.9f else 1.25f)), holder ?: ParchmentIvory)
                 }
             }
 
@@ -577,7 +600,18 @@ fun RealmMapScreen(
                     isAllyCamp -> RoyalAzure
                     else -> EmberCrimson
                 }
-                drawCamp(pos, markerS * 0.9f, Color(0xFFD8C9A8), flag, camp.status != "CAMPED", pulse)
+                val campSprite = sprites["camp"]
+                if (campSprite != null) {
+                    val arriving = camp.status != "CAMPED"
+                    if (arriving) {
+                        drawCircle(Color(0xFF9B7BFF).copy(alpha = 0.35f * (1f - pulse)), radius = markerS * (1.4f + pulse),
+                            center = pos, style = Stroke(markerS * 0.1f))
+                    }
+                    val box = drawMapSprite(campSprite, pos, markerS * 2.9f, anchorY = 0.62f, alpha = if (arriving) 0.5f else 1f)
+                    drawPennant(Offset(box.center.x + box.width * 0.12f, box.top + box.height * 0.3f), markerS * 0.6f, flag)
+                } else {
+                    drawCamp(pos, markerS * 0.9f, Color(0xFFD8C9A8), flag, camp.status != "CAMPED", pulse)
+                }
                 if (showLabels || isMineCamp) {
                     drawMapLabel(textMeasurer, "${camp.ownerName}'s camp", Offset(pos.x, pos.y + markerS * 0.85f),
                         if (isMineCamp) GildedHighlight else ParchmentIvory)

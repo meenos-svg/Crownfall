@@ -374,7 +374,7 @@ fun DrawScope.drawLandmark(c: Offset, s: Float, kind: String, holder: Color?) {
  * Draws a painted map sprite with its base at [c]: [width] wide, and [anchorY] of the way down the
  * picture sits on the point (the rocky base reaches a little below it).
  */
-fun DrawScope.drawMapSprite(image: ImageBitmap, c: Offset, width: Float, anchorY: Float = 0.72f): Rect {
+fun DrawScope.drawMapSprite(image: ImageBitmap, c: Offset, width: Float, anchorY: Float = 0.72f, alpha: Float = 1f): Rect {
     val h = width * image.height / image.width
     val left = c.x - width / 2f
     val top = c.y - h * anchorY
@@ -384,6 +384,7 @@ fun DrawScope.drawMapSprite(image: ImageBitmap, c: Offset, width: Float, anchorY
         srcSize = IntSize(image.width, image.height),
         dstOffset = IntOffset(left.roundToInt(), top.roundToInt()),
         dstSize = IntSize(width.roundToInt().coerceAtLeast(1), h.roundToInt().coerceAtLeast(1)),
+        alpha = alpha,
         filterQuality = FilterQuality.Medium
     )
     return Rect(left, top, left + width, top + h)

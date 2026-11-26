@@ -28,6 +28,9 @@ import com.example.data.LordProfile
 import com.example.data.ProfileRepository
 import com.example.data.Landmark
 import com.example.data.LandmarkRepository
+import com.example.data.Dragon
+import com.example.data.DragonBoard
+import com.example.data.DragonRepository
 import com.example.data.Realm
 import com.example.data.VisitorCamp
 import com.example.data.MarchStillMarching
@@ -60,6 +63,7 @@ class CrownfallViewModel(
     private val strongholdRepository: StrongholdRepository = StrongholdRepository(),
     private val expeditionRepository: ExpeditionRepository = ExpeditionRepository(),
     private val landmarkRepository: LandmarkRepository = LandmarkRepository(),
+    private val dragonRepository: DragonRepository = DragonRepository(),
     private val profileRepository: ProfileRepository = ProfileRepository()
 ) : ViewModel() {
 
@@ -261,6 +265,25 @@ class CrownfallViewModel(
         dispatchMarch("REINFORCE", "LANDMARK", landmark.id, landmark.name, landmark.coordX, landmark.coordY,
             infantry, cavalry, archers, siege)
     }
+
+    val dragons: StateFlow<List<Dragon>> = dragonRepository.observeDragons()
+        .catch { error ->
+            Log.w(TAG, "Error observing dragons", error)
+            emit(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
+
+    fun strikeDragon(dragon: Dragon, infantry: Long, cavalry: Long, archers: Long, siege: Long) {
+        dispatchMarch("RAID", "DRAGON", dragon.id, dragon.name, dragon.coordX, dragon.coordY,
+            infantry, cavalry, archers, siege)
+    }
+
+    fun rallyDragon(dragon: Dragon) {
+        launchAllianceRally("DRAGON", dragon.id, dragon.name, dragon.coordX, dragon.coordY, dragon.hp)
+    }
+
+    suspend fun loadDragonBoard(dragonId: String): DragonBoard? =
+        dragonRepository.board(dragonId).onFailure { Log.w(TAG, "Dragon board failed", it) }.getOrNull()
 
     fun withdrawLandmarkGarrison(landmark: Landmark) {
         runAction {

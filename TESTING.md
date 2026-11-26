@@ -107,3 +107,12 @@ Most need a second Google account (a friend or a second phone).
 - [ ] Raid a weak AI lord (Keep 2-3): loot and a battle report
 - [ ] After you raid a bot, it may strike back within a day
 - [ ] AI lords never attack you while your Peace Shield is up
+
+## Red Dragon world boss (SQL part 18)
+- [ ] A red dragon with a health bar shows on the map in your realm (it's also first in the target strip)
+- [ ] Tap it: the sheet shows level, HP, "flies off in", the hoard and a damage estimate
+- [ ] Strike it: the army marches, the HP drops, some troops come home burned, and the report says STRUCK
+- [ ] Sound a War Rally on it: alliance members can join; the rally hits harder
+- [ ] The leaderboard lists lords and alliances by damage; tapping a lord opens their profile
+- [ ] Kill it: everyone who hit it gets resources by share, the killer gets bonus gold, and the alliance chat announces it
+- [ ] After a kill, the map says when the next dragon lands (2 hours later, one level higher)

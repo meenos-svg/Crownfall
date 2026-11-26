@@ -417,11 +417,13 @@ private fun RankBadge(rank: Int) {
 private fun BattleLogCard(log: BattleLog) {
     val badgeColor = when {
         log.battleType == "GATHER" -> ArcaneEmerald
+        log.defenderTag == "DRAGON" -> if (log.victory) CrownGold else EmberCrimson
         log.victory -> CrownGold
         else -> EmberCrimson
     }
     val badgeText = when {
         log.battleType == "GATHER" -> "HARVEST"
+        log.defenderTag == "DRAGON" -> if (log.victory) "SLAIN" else "STRUCK"
         log.victory -> "VICTORY"
         else -> "DEFEAT"
     }

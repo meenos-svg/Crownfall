@@ -535,3 +535,104 @@ fun DrawScope.drawCastlePlate(
     drawText(nameLayout, topLeft = Offset(left + padX + badgeW + gap, top + padY))
 }
 
+
+/**
+ * The Red Dragon, drawn top-down with its wings spread. [flap] runs 0..1 and beats the wings,
+ * [s] is roughly the wingspan's half-width.
+ */
+fun DrawScope.drawDragon(c: Offset, s: Float, flap: Float) {
+    val beat = kotlin.math.sin(flap * 2f * Math.PI.toFloat())
+    val span = s * (1f + 0.12f * beat)
+    val crimson = Color(0xFFB3261E)
+    val deep = Color(0xFF5E0B0B)
+    val ember = Color(0xFFFF8A3D)
+
+    // heat haze under it
+    drawCircle(
+        brush = androidx.compose.ui.graphics.Brush.radialGradient(
+            listOf(ember.copy(alpha = 0.45f), Color.Transparent), center = c, radius = s * 1.5f
+        ),
+        radius = s * 1.5f, center = c
+    )
+    // shadow on the ground
+    drawOval(Color.Black.copy(alpha = 0.35f), topLeft = Offset(c.x - span, c.y + s * 0.35f), size = Size(span * 2f, s * 0.5f))
+
+    // wings: a leading edge and three scalloped fingers each side
+    for (side in listOf(-1f, 1f)) {
+        val wing = Path().apply {
+            moveTo(c.x + side * s * 0.12f, c.y - s * 0.18f)
+            lineTo(c.x + side * span * 0.55f, c.y - s * (0.72f + 0.12f * beat))
+            lineTo(c.x + side * span, c.y - s * (0.35f + 0.1f * beat))
+            quadraticTo(c.x + side * span * 0.82f, c.y - s * 0.02f, c.x + side * span * 0.86f, c.y + s * 0.18f)
+            quadraticTo(c.x + side * span * 0.62f, c.y + s * 0.02f, c.x + side * span * 0.58f, c.y + s * 0.26f)
+            quadraticTo(c.x + side * span * 0.38f, c.y + s * 0.08f, c.x + side * span * 0.3f, c.y + s * 0.3f)
+            lineTo(c.x + side * s * 0.12f, c.y + s * 0.12f)
+            close()
+        }
+        drawPath(wing, crimson)
+        drawPath(wing, deep, style = Stroke(width = s * 0.05f))
+        // wing bones
+        val shoulder = Offset(c.x + side * s * 0.14f, c.y - s * 0.12f)
+        val elbow = Offset(c.x + side * span * 0.55f, c.y - s * (0.72f + 0.12f * beat))
+        drawLine(deep, shoulder, elbow, strokeWidth = s * 0.05f)
+        listOf(0.86f to 0.18f, 0.58f to 0.26f, 0.3f to 0.3f).forEach { (fx, fy) ->
+            drawLine(deep.copy(alpha = 0.8f), elbow, Offset(c.x + side * span * fx, c.y + s * fy), strokeWidth = s * 0.03f)
+        }
+    }
+
+    // tail curling behind
+    val tail = Path().apply {
+        moveTo(c.x - s * 0.08f, c.y + s * 0.3f)
+        quadraticTo(c.x - s * 0.1f, c.y + s * 0.85f, c.x + s * 0.35f, c.y + s * 0.95f)
+        quadraticTo(c.x + s * 0.05f, c.y + s * 0.75f, c.x + s * 0.08f, c.y + s * 0.3f)
+        close()
+    }
+    drawPath(tail, crimson)
+    val barb = Path().apply {
+        moveTo(c.x + s * 0.3f, c.y + s * 0.88f)
+        lineTo(c.x + s * 0.5f, c.y + s * 0.9f)
+        lineTo(c.x + s * 0.34f, c.y + s * 1.04f)
+        close()
+    }
+    drawPath(barb, deep)
+
+    // body and neck
+    drawOval(crimson, topLeft = Offset(c.x - s * 0.17f, c.y - s * 0.3f), size = Size(s * 0.34f, s * 0.7f))
+    drawOval(deep.copy(alpha = 0.55f), topLeft = Offset(c.x - s * 0.05f, c.y - s * 0.25f), size = Size(s * 0.1f, s * 0.58f))
+    drawOval(crimson, topLeft = Offset(c.x - s * 0.09f, c.y - s * 0.58f), size = Size(s * 0.18f, s * 0.36f))
+
+    // head with horns and glowing eyes
+    val head = Offset(c.x, c.y - s * 0.66f)
+    drawCircle(crimson, radius = s * 0.13f, center = head)
+    drawCircle(deep, radius = s * 0.13f, center = head, style = Stroke(width = s * 0.03f))
+    for (side in listOf(-1f, 1f)) {
+        val horn = Path().apply {
+            moveTo(head.x + side * s * 0.06f, head.y - s * 0.08f)
+            lineTo(head.x + side * s * 0.2f, head.y - s * 0.26f)
+            lineTo(head.x + side * s * 0.11f, head.y - s * 0.04f)
+            close()
+        }
+        drawPath(horn, Color(0xFFE8D9B5))
+        drawCircle(Color(0xFFFFD54F), radius = s * 0.028f, center = Offset(head.x + side * s * 0.055f, head.y - s * 0.02f))
+    }
+    // a lick of fire from the jaws
+    val flame = Path().apply {
+        moveTo(head.x - s * 0.05f, head.y - s * 0.11f)
+        quadraticTo(head.x, head.y - s * (0.42f + 0.08f * beat), head.x + s * 0.05f, head.y - s * 0.11f)
+        close()
+    }
+    drawPath(flame, ember.copy(alpha = 0.85f))
+}
+
+/** A health bar under a world boss. */
+fun DrawScope.drawBossHealthBar(center: Offset, width: Float, fraction: Float) {
+    val h = (width * 0.09f).coerceAtLeast(5f)
+    val topLeft = Offset(center.x - width / 2f, center.y - h / 2f)
+    drawRoundRect(Color.Black.copy(alpha = 0.7f), topLeft = topLeft - Offset(2f, 2f),
+        size = Size(width + 4f, h + 4f), cornerRadius = CornerRadius(h, h))
+    drawRoundRect(Color(0xFF3A0D0D), topLeft = topLeft, size = Size(width, h), cornerRadius = CornerRadius(h, h))
+    if (fraction > 0f) {
+        drawRoundRect(Color(0xFFE53935), topLeft = topLeft, size = Size(width * fraction.coerceIn(0f, 1f), h),
+            cornerRadius = CornerRadius(h, h))
+    }
+}

@@ -222,6 +222,7 @@ private fun BattleRow.toBattleLog(me: String): BattleLog {
     val defenderTag = def?.tag ?: when (defenderKind) {
         "BASTION" -> "NPC"
         "RESOURCE" -> "NODE"
+        "DRAGON" -> "DRAGON"
         else -> ""
     }
     return BattleLog(

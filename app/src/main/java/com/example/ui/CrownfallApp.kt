@@ -134,6 +134,7 @@ fun CrownfallMainShell(
     val viewedRealmId by viewModel.viewedRealmId.collectAsStateWithLifecycle()
     val mapEmpire by viewModel.mapEmpire.collectAsStateWithLifecycle()
     val landmarks by viewModel.landmarks.collectAsStateWithLifecycle()
+    val dragons by viewModel.dragons.collectAsStateWithLifecycle()
     val nowEpochMs by viewModel.nowEpochMs.collectAsStateWithLifecycle()
     val perResourceLastHarvestMs by viewModel.perResourceLastHarvestMs.collectAsStateWithLifecycle()
     val snackbarMsg by viewModel.snackbarMessage.collectAsStateWithLifecycle()
@@ -384,7 +385,11 @@ fun CrownfallMainShell(
                                         onAttackLandmark = viewModel::attackLandmark,
                                         onReinforceLandmark = viewModel::reinforceLandmark,
                                         onWithdrawLandmark = viewModel::withdrawLandmarkGarrison,
-                                        onViewProfile = { profileUid = it }
+                                        onViewProfile = { profileUid = it },
+                                        dragons = dragons,
+                                        onStrikeDragon = viewModel::strikeDragon,
+                                        onRallyDragon = viewModel::rallyDragon,
+                                        onLoadDragonBoard = viewModel::loadDragonBoard
                                     )
 
                                     2 -> AllianceScreen(

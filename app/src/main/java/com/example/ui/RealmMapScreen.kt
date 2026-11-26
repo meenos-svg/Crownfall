@@ -86,6 +86,8 @@ import com.example.data.WorldMarch
 import com.example.data.Stronghold
 import com.example.data.Realm
 import com.example.data.Landmark
+import com.example.data.Dragon
+import com.example.data.DragonBoard
 import com.example.data.VisitorCamp
 import com.example.data.WorldNpcNode
 import com.example.data.formatCompact
@@ -144,6 +146,14 @@ sealed interface MapTarget {
         override val coordX: Long = landmark.coordX
         override val coordY: Long = landmark.coordY
         override val power: Long = landmark.defenseEstimate
+    }
+
+    data class DragonSite(val dragon: Dragon) : MapTarget {
+        override val id: String = dragon.id
+        override val name: String = dragon.name
+        override val coordX: Long = dragon.coordX
+        override val coordY: Long = dragon.coordY
+        override val power: Long = dragon.hp
     }
 
     data class CampSite(val camp: VisitorCamp) : MapTarget {
@@ -211,7 +221,11 @@ fun RealmMapScreen(
     onAttackLandmark: (Landmark, Long, Long, Long, Long) -> Unit = { _, _, _, _, _ -> },
     onReinforceLandmark: (Landmark, Long, Long, Long, Long) -> Unit = { _, _, _, _, _ -> },
     onWithdrawLandmark: (Landmark) -> Unit = {},
-    onViewProfile: (String) -> Unit = {}
+    onViewProfile: (String) -> Unit = {},
+    dragons: List<Dragon> = emptyList(),
+    onStrikeDragon: (Dragon, Long, Long, Long, Long) -> Unit = { _, _, _, _, _ -> },
+    onRallyDragon: (Dragon) -> Unit = {},
+    onLoadDragonBoard: suspend (String) -> DragonBoard? = { null }
 ) {
     val homeRealmId = homeEmpire.homeRealmId
     val shownRealmId = viewedRealmId.ifBlank { homeRealmId }
@@ -220,6 +234,8 @@ fun RealmMapScreen(
     val campHere = myCamp?.takeIf { it.realmId == shownRealmId }
     val campsHere = camps.filter { it.realmId == shownRealmId }
     val landmarksHere = landmarks.filter { it.realmId == shownRealmId }
+    val dragonRealm = dragons.firstOrNull { it.realmId == shownRealmId }
+    val dragonHere = dragonRealm?.takeIf { it.isAlive }
     val strongholdsHere = strongholds.filter { it.realmId.isBlank() || it.realmId == shownRealmId }
     var expeditionSpot by remember { mutableStateOf<Pair<Long, Long>?>(null) }
 
@@ -234,7 +250,8 @@ fun RealmMapScreen(
     val canFound = empire.allianceRole == "LEADER" && ownStronghold == null &&
         (!visiting || campHere?.status == "CAMPED")
 
-    val allTargets = remember(kingdoms, strongholdsHere, campsHere, landmarksHere) {
+    val allTargets = remember(kingdoms, strongholdsHere, campsHere, landmarksHere, dragonHere?.id) {
+        listOfNotNull(dragonHere?.let { MapTarget.DragonSite(it) }) +
         strongholdsHere.map { MapTarget.StrongholdSite(it) } +
             landmarksHere.map { MapTarget.LandmarkSite(it) } +
             campsHere.map { MapTarget.CampSite(it) } +
@@ -331,6 +348,7 @@ fun RealmMapScreen(
                             val lift = when (target) {
                                 is MapTarget.PlayerCastle -> 26f * density
                                 is MapTarget.StrongholdSite -> 22f * density
+                                is MapTarget.DragonSite -> 18f * density
                                 else -> 10f * density
                             }
                             return hypot((pos.x - tap.x).toDouble(), (pos.y - lift - tap.y).toDouble())
@@ -561,6 +579,20 @@ fun RealmMapScreen(
                 }
             }
 
+            // The Red Dragon
+            dragonHere?.let { d ->
+                val pos = worldToScreen(d.coordX, d.coordY, canvasSize)
+                val dS = (markerS * 2.1f).coerceAtLeast(34f)
+                val flap = (nowEpochMs % 1400L) / 1400f
+                val dragonSprite = sprites["dragon"]
+                if (dragonSprite != null) drawMapSprite(dragonSprite, pos, dS * 2.6f, anchorY = 0.7f)
+                else drawDragon(Offset(pos.x, pos.y - dS * 0.35f), dS, flap)
+                drawBossHealthBar(Offset(pos.x, pos.y + dS * 0.85f), dS * 1.6f, d.hpFraction)
+                if (showLabels) {
+                    drawMapLabel(textMeasurer, "${d.name} • LV ${d.level}", Offset(pos.x, pos.y + dS * 1.15f), Color(0xFFFF8A80))
+                }
+            }
+
             // Alliance strongholds
             val pulse = (nowEpochMs % 1600L) / 1600f
             strongholdsHere.forEach { sh ->
@@ -731,6 +763,9 @@ fun RealmMapScreen(
                     MapLegendDot(TimberMoss, "Nodes")
                 }
             }
+            if (dragonRealm != null && !dragonRealm.isAlive && dragonRealm.respawnAtMs > 0L) {
+                DragonAwayBanner(dragonRealm, nowEpochMs)
+            }
             if (canFound && empire.allianceId.isNotBlank()) {
                 Surface(
                     color = BasaltSlate.copy(alpha = 0.9f),
@@ -757,6 +792,7 @@ fun RealmMapScreen(
                 ) { target ->
                     val badgeColor = when (target) {
                         is MapTarget.LandmarkSite -> if (target.landmark.isHeld) CrownGold else WeatheredAsh
+                        is MapTarget.DragonSite -> EmberCrimson
                         is MapTarget.CampSite -> EmberCrimson
                         is MapTarget.StrongholdSite -> if (target.stronghold.callForAid) CrownGold else RoyalAzure
                         is MapTarget.PlayerCastle -> EmberCrimson
@@ -913,6 +949,24 @@ fun RealmMapScreen(
         )
     }
 
+    (selectedTarget as? MapTarget.DragonSite)?.let { site ->
+        val live = dragons.firstOrNull { it.id == site.dragon.id }
+        if (live != null && live.isAlive) {
+            DragonSheet(
+                dragon = live,
+                empire = empire,
+                alliance = alliance,
+                visiting = visiting,
+                nowEpochMs = nowEpochMs,
+                onDismiss = { selectedTarget = null },
+                onStrike = { i, c, a, sg -> onStrikeDragon(live, i, c, a, sg); selectedTarget = null },
+                onRally = { onRallyDragon(live); selectedTarget = null },
+                onLoadBoard = onLoadDragonBoard,
+                onViewProfile = { uid -> selectedTarget = null; onViewProfile(uid) }
+            )
+        }
+    }
+
     (selectedTarget as? MapTarget.LandmarkSite)?.let { site ->
         val live = landmarks.firstOrNull { it.id == site.landmark.id } ?: site.landmark
         val friendly = live.isHeld && empire.allianceId.isNotBlank() &&
@@ -951,7 +1005,7 @@ fun RealmMapScreen(
     }
 
     // Tactical Target Command Bottom Sheet
-    selectedTarget?.takeIf { it !is MapTarget.StrongholdSite && it !is MapTarget.LandmarkSite }?.let { target ->
+    selectedTarget?.takeIf { it !is MapTarget.StrongholdSite && it !is MapTarget.LandmarkSite && it !is MapTarget.DragonSite }?.let { target ->
         val isOwnCastle = target.id == empire.userId ||
             (target is MapTarget.CampSite && target.camp.ownerUid == empire.userId)
         val isResource = target is MapTarget.NpcSite && target.node.targetType == "RESOURCE"

@@ -35,11 +35,11 @@ Most need a second Google account (a friend or a second phone).
 - [ ] Chimney smoke and building colours look right on your phone
 
 ## Strongholds & pacts (SQL part 7)
-- [ ] Leader long-presses the map → raise stronghold (3,000 Stone, 2,000 Gold); it appears for everyone
+- [x] Leader long-presses the map → raise stronghold (3,000 Stone, 2,000 Gold); it appears for everyone
 - [ ] Too close to a bastion/castle/other stronghold is refused
 - [ ] Member reinforces the stronghold; their name shows under Defenders
 - [ ] Withdraw my troops brings them home instantly
-- [ ] Outsider can't reinforce; after Call for aid they can (shows "relief"), gold beacon on the map
+- [x] Call for aid works (still to check with a 2nd account: outsider can't reinforce; after Call for aid they can (shows "relief"), gold beacon on the map)
 - [ ] Enemy Siege: walls drop, red ring pulses, Herald tells the alliance (and pact allies)
 - [ ] Enemy rally on a stronghold
 - [ ] Walls hit 0 → stronghold falls, garrison comes home, attacker gets 1,500 gold (rally: 3,000 shared)

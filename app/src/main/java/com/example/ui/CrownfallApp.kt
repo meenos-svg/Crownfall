@@ -1,5 +1,11 @@
 package com.example.ui
 
+import androidx.activity.result.PickVisualMediaRequest
+
+import androidx.activity.result.contract.ActivityResultContracts
+
+import androidx.activity.compose.rememberLauncherForActivityResult
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -170,11 +176,19 @@ fun CrownfallMainShell(
             onDismiss = { profileUid = null }
         )
     }
+    val pickerContext = LocalContext.current
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) viewModel.uploadAvatar(pickerContext, uri)
+    }
     if (showAvatarPicker) {
         AvatarPickerDialog(
             current = empire?.avatar ?: "crest:1",
             onPick = { viewModel.setAvatar(it); showAvatarPicker = false },
-            onDismiss = { showAvatarPicker = false }
+            onDismiss = { showAvatarPicker = false },
+            onUpload = {
+                showAvatarPicker = false
+                photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            }
         )
     }
 

@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AcUnit
+import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Anchor
 import androidx.compose.material.icons.filled.Bolt
@@ -146,7 +147,7 @@ fun LordAvatar(
         val kind = avatar.substringBefore(':')
         val n = avatar.substringAfter(':', "1").toIntOrNull() ?: 1
         when {
-            kind == "google" && !avatarUrl.isNullOrBlank() -> SubcomposeAsyncImage(
+            (kind == "google" || kind == "custom") && !avatarUrl.isNullOrBlank() -> SubcomposeAsyncImage(
                 model = avatarUrl,
                 contentDescription = "Avatar",
                 contentScale = ContentScale.Crop,
@@ -172,10 +173,12 @@ fun LordAvatar(
 fun AvatarPickerDialog(
     current: String,
     onPick: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onUpload: () -> Unit = {}
 ) {
     val portraits = rememberAvailablePortraits()
     val options = buildList {
+        add("upload")
         add("google")
         portraits.forEach { add("portrait:$it") }
         (1..CRESTS.size).forEach { add("crest:$it") }
@@ -197,11 +200,23 @@ fun AvatarPickerDialog(
                         Box(
                             modifier = Modifier
                                 .clip(CircleShape)
-                                .clickable { onPick(option) }
+                                .clickable { if (option == "upload") onUpload() else onPick(option) }
                                 .padding(2.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (option == "google") {
+                            if (option == "upload") {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = BurnishedCharcoal,
+                                    border = BorderStroke(if (current == "custom") 3.dp else 1.5.dp, if (current == "custom") CrownGold else EtchedSteel),
+                                    modifier = Modifier.size(58.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Filled.AddAPhoto, contentDescription = null, tint = CrownGold,
+                                            modifier = Modifier.size(28.dp))
+                                    }
+                                }
+                            } else if (option == "google") {
                                 Surface(
                                     shape = CircleShape,
                                     color = BurnishedCharcoal,
@@ -224,6 +239,8 @@ fun AvatarPickerDialog(
                         }
                         if (option == "google") {
                             Text("Google", style = MaterialTheme.typography.labelSmall, color = WeatheredAsh)
+                        } else if (option == "upload") {
+                            Text("Your photo", style = MaterialTheme.typography.labelSmall, color = WeatheredAsh)
                         }
                     }
                 }

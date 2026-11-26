@@ -706,6 +706,24 @@ class CrownfallViewModel(
         }
     }
 
+    fun uploadAvatar(context: android.content.Context, uri: android.net.Uri) {
+        val appContext = context.applicationContext
+        runAction {
+            postMessage("Painting your likeness…")
+            val bytes = runCatching {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                    com.example.data.AvatarImage.prepare(appContext, uri)
+                }
+            }.getOrElse {
+                postMessage(it.localizedMessage ?: "Couldn't read that picture.")
+                return@runAction
+            }
+            empireRepository.uploadAvatar(bytes)
+                .onSuccess { postMessage("Your portrait hangs in the great hall.") }
+                .onFailure { postMessage(it.localizedMessage ?: "Upload failed.") }
+        }
+    }
+
     fun setAvatar(avatar: String) {
         runAction {
             empireRepository.setAvatar(avatar)

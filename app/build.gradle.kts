@@ -123,6 +123,7 @@ dependencies {
   implementation(libs.supabase.postgrest)
   implementation(libs.supabase.auth)
   implementation(libs.supabase.realtime)
+  implementation(libs.supabase.storage)
   implementation(libs.ktor.client.okhttp)
   implementation(libs.kotlinx.serialization.json)
   implementation(libs.kotlinx.coroutines.android)

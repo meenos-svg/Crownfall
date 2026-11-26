@@ -1,5 +1,9 @@
 package com.example.data
 
+import io.ktor.http.ContentType
+
+import io.github.jan.supabase.storage.storage
+
 import android.util.Log
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
@@ -201,6 +205,30 @@ class EmpireRepository(
 
     suspend fun setMotto(motto: String): Result<Unit> = supabaseResult {
         act("set_motto", buildJsonObject { put("p_motto", motto) })
+        Unit
+    }
+
+    /**
+     * Uploads a picture (already cropped and shrunk) into the lord's own folder in the "avatars"
+     * bucket, makes it their avatar, then tidies away their older uploads.
+     */
+    suspend fun uploadAvatar(jpegBytes: ByteArray): Result<Unit> = supabaseResult {
+        val uid = client.auth.currentUserOrNull()?.id ?: error("Not signed in")
+        val bucket = client.storage.from("avatars")
+        val name = "avatar-${System.currentTimeMillis()}.jpg"
+        val path = "$uid/$name"
+        bucket.upload(path, jpegBytes) {
+            upsert = true
+            contentType = ContentType.Image.JPEG
+        }
+        act("set_avatar", buildJsonObject {
+            put("p_avatar", "custom")
+            put("p_url", bucket.publicUrl(path))
+        })
+        runCatching {
+            val old = bucket.list(uid).map { it.name }.filter { it != name }
+            if (old.isNotEmpty()) bucket.delete(old.map { "$uid/$it" })
+        }
         Unit
     }
 

@@ -205,28 +205,29 @@ fun AvatarPickerDialog(
                             contentAlignment = Alignment.Center
                         ) {
                             if (option == "upload") {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = BurnishedCharcoal,
-                                    border = BorderStroke(if (current == "custom") 3.dp else 1.5.dp, if (current == "custom") CrownGold else EtchedSteel),
-                                    modifier = Modifier.size(58.dp)
+                                // A plain Box: a Material Surface here would swallow the tap.
+                                Box(
+                                    modifier = Modifier
+                                        .size(58.dp)
+                                        .clip(CircleShape)
+                                        .background(BurnishedCharcoal)
+                                        .border(if (current == "custom") 3.dp else 1.5.dp, if (current == "custom") CrownGold else EtchedSteel, CircleShape),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Filled.AddAPhoto, contentDescription = null, tint = CrownGold,
-                                            modifier = Modifier.size(28.dp))
-                                    }
+                                    Icon(Icons.Filled.AddAPhoto, contentDescription = "Upload your photo", tint = CrownGold,
+                                        modifier = Modifier.size(28.dp))
                                 }
                             } else if (option == "google") {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = BurnishedCharcoal,
-                                    border = BorderStroke(if (selected) 3.dp else 1.5.dp, if (selected) CrownGold else EtchedSteel),
-                                    modifier = Modifier.size(58.dp)
+                                Box(
+                                    modifier = Modifier
+                                        .size(58.dp)
+                                        .clip(CircleShape)
+                                        .background(BurnishedCharcoal)
+                                        .border(if (selected) 3.dp else 1.5.dp, if (selected) CrownGold else EtchedSteel, CircleShape),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Filled.AccountCircle, contentDescription = null, tint = ParchmentIvory,
-                                            modifier = Modifier.size(34.dp))
-                                    }
+                                    Icon(Icons.Filled.AccountCircle, contentDescription = "Google photo", tint = ParchmentIvory,
+                                        modifier = Modifier.size(34.dp))
                                 }
                             } else {
                                 LordAvatar(

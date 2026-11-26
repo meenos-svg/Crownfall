@@ -1,5 +1,15 @@
 package com.example.ui
 
+import kotlin.math.roundToInt
+
+import androidx.compose.ui.unit.IntSize
+
+import androidx.compose.ui.unit.IntOffset
+
+import androidx.compose.ui.graphics.FilterQuality
+
+import androidx.compose.ui.graphics.ImageBitmap
+
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -157,9 +167,10 @@ fun DrawScope.drawStronghold(
     walls: Float,
     underSiege: Boolean,
     callForAid: Boolean,
-    pulse: Float
+    pulse: Float,
+    body: Boolean = true
 ) {
-    groundShadow(c, s * 1.2f)
+    if (body) groundShadow(c, s * 1.2f)
     val x = c.x
     val y = c.y
     if (underSiege) {
@@ -168,50 +179,52 @@ fun DrawScope.drawStronghold(
         drawCircle(Color(0xFFE03A4A).copy(alpha = 0.8f * (1f - pulse)), radius = r, center = c, style = Stroke(s * 0.08f))
     }
 
-    // star bastions: an eight-point wall around the keep
-    val star = Path()
-    for (i in 0 until 16) {
-        val a = Math.PI * 2 * i / 16 - Math.PI / 2
-        val rr = if (i % 2 == 0) 1.25f * s else 0.92f * s
-        val px = x + (Math.cos(a) * rr).toFloat()
-        val py = y + (Math.sin(a) * rr * 0.62f).toFloat() + 0.12f * s
-        if (i == 0) star.moveTo(px, py) else star.lineTo(px, py)
-    }
-    star.close()
-    drawPath(star, StoneMid)
-    drawPath(star, Color.Black.copy(alpha = 0.25f))
-    drawPath(star, Outline, style = Stroke(width = (s * 0.07f).coerceAtLeast(1.2f)))
-
-    // great keep
-    val keep = Path().apply {
-        rect(x - 0.42f * s, y - 0.95f * s, x + 0.42f * s, y + 0.30f * s)
-        rect(x - 0.62f * s, y - 0.55f * s, x - 0.36f * s, y + 0.30f * s)
-        rect(x + 0.36f * s, y - 0.55f * s, x + 0.62f * s, y + 0.30f * s)
-        val m = 0.14f * s
-        var bx = -0.42f
-        while (bx < 0.40f) {
-            rect(x + bx * s, y - 0.95f * s - m, x + (bx + 0.14f) * s, y - 0.95f * s)
-            bx += 0.28f
+    if (body) {
+        // star bastions: an eight-point wall around the keep
+        val star = Path()
+        for (i in 0 until 16) {
+            val a = Math.PI * 2 * i / 16 - Math.PI / 2
+            val rr = if (i % 2 == 0) 1.25f * s else 0.92f * s
+            val px = x + (Math.cos(a) * rr).toFloat()
+            val py = y + (Math.sin(a) * rr * 0.62f).toFloat() + 0.12f * s
+            if (i == 0) star.moveTo(px, py) else star.lineTo(px, py)
         }
-    }
-    drawPath(keep, wallColor)
-    drawRect(Color.Black.copy(alpha = 0.22f), Offset(x + 0.18f * s, y - 0.95f * s), Size(0.24f * s, 1.25f * s))
-    drawPath(keep, Outline, style = Stroke(width = (s * 0.08f).coerceAtLeast(1.2f)))
-    drawRect(GateDark, Offset(x - 0.14f * s, y - 0.05f * s), Size(0.28f * s, 0.35f * s))
-    drawCircle(GateDark, radius = 0.14f * s, center = Offset(x, y - 0.05f * s))
+        star.close()
+        drawPath(star, StoneMid)
+        drawPath(star, Color.Black.copy(alpha = 0.25f))
+        drawPath(star, Outline, style = Stroke(width = (s * 0.07f).coerceAtLeast(1.2f)))
 
-    // tall banner
-    drawLine(Outline, Offset(x, y - 1.05f * s), Offset(x, y - 1.85f * s), strokeWidth = (s * 0.07f).coerceAtLeast(1.2f))
-    val flag = Path().apply {
-        moveTo(x, y - 1.85f * s)
-        lineTo(x + 0.70f * s, y - 1.70f * s)
-        lineTo(x + 0.50f * s, y - 1.58f * s)
-        lineTo(x + 0.70f * s, y - 1.45f * s)
-        lineTo(x, y - 1.40f * s)
-        close()
+        // great keep
+        val keep = Path().apply {
+            rect(x - 0.42f * s, y - 0.95f * s, x + 0.42f * s, y + 0.30f * s)
+            rect(x - 0.62f * s, y - 0.55f * s, x - 0.36f * s, y + 0.30f * s)
+            rect(x + 0.36f * s, y - 0.55f * s, x + 0.62f * s, y + 0.30f * s)
+            val m = 0.14f * s
+            var bx = -0.42f
+            while (bx < 0.40f) {
+                rect(x + bx * s, y - 0.95f * s - m, x + (bx + 0.14f) * s, y - 0.95f * s)
+                bx += 0.28f
+            }
+        }
+        drawPath(keep, wallColor)
+        drawRect(Color.Black.copy(alpha = 0.22f), Offset(x + 0.18f * s, y - 0.95f * s), Size(0.24f * s, 1.25f * s))
+        drawPath(keep, Outline, style = Stroke(width = (s * 0.08f).coerceAtLeast(1.2f)))
+        drawRect(GateDark, Offset(x - 0.14f * s, y - 0.05f * s), Size(0.28f * s, 0.35f * s))
+        drawCircle(GateDark, radius = 0.14f * s, center = Offset(x, y - 0.05f * s))
+
+        // tall banner
+        drawLine(Outline, Offset(x, y - 1.05f * s), Offset(x, y - 1.85f * s), strokeWidth = (s * 0.07f).coerceAtLeast(1.2f))
+        val flag = Path().apply {
+            moveTo(x, y - 1.85f * s)
+            lineTo(x + 0.70f * s, y - 1.70f * s)
+            lineTo(x + 0.50f * s, y - 1.58f * s)
+            lineTo(x + 0.70f * s, y - 1.45f * s)
+            lineTo(x, y - 1.40f * s)
+            close()
+        }
+        drawPath(flag, bannerColor)
+        drawPath(flag, Outline, style = Stroke(width = (s * 0.05f).coerceAtLeast(1f)))
     }
-    drawPath(flag, bannerColor)
-    drawPath(flag, Outline, style = Stroke(width = (s * 0.05f).coerceAtLeast(1f)))
 
     if (callForAid) {
         val b = Offset(x - 0.55f * s, y - 1.75f * s)
@@ -355,6 +368,47 @@ fun DrawScope.drawLandmark(c: Offset, s: Float, kind: String, holder: Color?) {
         }
         drawPath(flag, holder)
     }
+}
+
+/**
+ * Draws a painted map sprite with its base at [c]: [width] wide, and [anchorY] of the way down the
+ * picture sits on the point (the rocky base reaches a little below it).
+ */
+fun DrawScope.drawMapSprite(image: ImageBitmap, c: Offset, width: Float, anchorY: Float = 0.72f): Rect {
+    val h = width * image.height / image.width
+    val left = c.x - width / 2f
+    val top = c.y - h * anchorY
+    drawImage(
+        image = image,
+        srcOffset = IntOffset.Zero,
+        srcSize = IntSize(image.width, image.height),
+        dstOffset = IntOffset(left.roundToInt(), top.roundToInt()),
+        dstSize = IntSize(width.roundToInt().coerceAtLeast(1), h.roundToInt().coerceAtLeast(1)),
+        filterQuality = FilterQuality.Medium
+    )
+    return Rect(left, top, left + width, top + h)
+}
+
+/** A small coloured pennant on a pole, planted at [base] (used to show whose castle a sprite is). */
+fun DrawScope.drawPennant(base: Offset, s: Float, color: Color) {
+    val top = Offset(base.x, base.y - s * 1.3f)
+    drawLine(Outline, base, top, strokeWidth = (s * 0.09f).coerceAtLeast(1.4f))
+    val flag = Path().apply {
+        moveTo(top.x, top.y)
+        lineTo(top.x + s * 0.95f, top.y + s * 0.22f)
+        lineTo(top.x + s * 0.62f, top.y + s * 0.38f)
+        lineTo(top.x + s * 0.95f, top.y + s * 0.56f)
+        lineTo(top.x, top.y + s * 0.6f)
+        close()
+    }
+    drawPath(flag, color)
+    drawPath(flag, Outline, style = Stroke(width = (s * 0.06f).coerceAtLeast(1f)))
+}
+
+/** The shimmering dome of a Peace Shield. */
+fun DrawScope.drawShieldDome(c: Offset, r: Float) {
+    drawCircle(Color(0xFF52D69A).copy(alpha = 0.16f), radius = r, center = c)
+    drawCircle(Color(0xFF8CF0C4).copy(alpha = 0.75f), radius = r, center = c, style = Stroke(width = (r * 0.06f).coerceAtLeast(1.5f)))
 }
 
 /** A resource site: a round badge with a small picture of what it produces. */

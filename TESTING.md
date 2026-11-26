@@ -38,6 +38,12 @@ Most need a second Google account (a friend or a second phone).
 - [ ] No castles in lakes, lava or mountains (existing ones were moved)
 - [ ] Relocating / camping / raising a stronghold in water or lava is refused with a clear message
 
+## Painted map sprites
+- [ ] Castles show as painted castles (small keep → stone castle at Keep 6 → grand citadel at Keep 13)
+- [ ] Coloured pennant on each castle: gold you, blue alliance, red others; green dome when shielded
+- [ ] Shadow Bastions are the purple ruin; the Obsidian Citadel is the volcano fortress
+- [ ] Strongholds use the painted fortress with siege ring, aid beacon and wall bar still showing
+
 ## Citadel
 - [ ] Chimney smoke and building colours look right on your phone
 

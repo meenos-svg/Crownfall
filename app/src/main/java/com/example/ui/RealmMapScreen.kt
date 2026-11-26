@@ -1,5 +1,7 @@
 package com.example.ui
 
+import androidx.compose.ui.graphics.ImageBitmap
+
 import androidx.compose.ui.platform.LocalContext
 
 import androidx.compose.ui.graphics.asImageBitmap
@@ -272,6 +274,17 @@ fun RealmMapScreen(
         }
     }
 
+    // Painted map sprites (assets/mapsprites); the drawn icons stay as a fallback.
+    val sprites by produceState<Map<String, ImageBitmap>>(initialValue = emptyMap()) {
+        value = withContext(Dispatchers.IO) {
+            listOf("castle1", "castle2", "castle3", "stronghold", "bastion", "obsidian").mapNotNull { name ->
+                runCatching {
+                    appContext.assets.open("mapsprites/$name.webp").use { BitmapFactory.decodeStream(it)?.asImageBitmap() }
+                }.getOrNull()?.let { name to it }
+            }.toMap()
+        }
+    }
+
     val myMarches = remember(activeMarches, empire.userId) {
         activeMarches.filter { it.ownerUid == empire.userId }
     }
@@ -489,9 +502,11 @@ fun RealmMapScreen(
             GameCatalog.worldNpcNodes.forEach { node ->
                 val pos = worldToScreen(node.coordX, node.coordY, canvasSize)
                 if (node.targetType == "BASTION") {
-                    drawBastion(pos, markerS * 0.9f)
+                    val sprite = if (node.id == "bastion_5") sprites["obsidian"] ?: sprites["bastion"] else sprites["bastion"]
+                    if (sprite != null) drawMapSprite(sprite, pos, markerS * (if (node.id == "bastion_5") 5.0f else 4.0f))
+                    else drawBastion(pos, markerS * 0.9f)
                     if (showLabels) {
-                        drawMapLabel(textMeasurer, node.name, Offset(pos.x, pos.y + markerS * 0.75f), EmberCrimson)
+                        drawMapLabel(textMeasurer, node.name, Offset(pos.x, pos.y + markerS * (if (sprites.isEmpty()) 0.75f else 1.35f)), EmberCrimson)
                     }
                 } else {
                     val resColor = when (node.resourceType) {
@@ -528,7 +543,13 @@ fun RealmMapScreen(
                     else -> EmberCrimson
                 }
                 val shS = markerS * 1.35f
+                val shSprite = sprites["stronghold"]
+                if (shSprite != null) {
+                    val box = drawMapSprite(shSprite, pos, shS * 3.8f, anchorY = 0.70f)
+                    drawPennant(Offset(box.center.x, box.top + box.height * 0.12f), shS * 0.75f, wall)
+                }
                 drawStronghold(
+                    body = shSprite == null,
                     c = pos,
                     s = shS,
                     wallColor = wall,
@@ -541,7 +562,7 @@ fun RealmMapScreen(
                 drawMapLabel(
                     textMeasurer,
                     sh.displayName,
-                    Offset(pos.x, pos.y + shS * 1.25f),
+                    Offset(pos.x, pos.y + shS * (if (sprites.isEmpty()) 1.25f else 1.5f)),
                     if (isOurs) GildedHighlight else if (sh.callForAid) CrownGold else ParchmentIvory
                 )
             }
@@ -579,18 +600,32 @@ fun RealmMapScreen(
                     else -> ObsidianVoid
                 }
                 val castleS = if (isMine) markerS * 1.2f else markerS
-                drawCastle(
-                    c = pos,
-                    s = castleS,
-                    wallColor = wall,
-                    bannerColor = banner,
-                    shielded = k.shieldUntilEpochMs > nowEpochMs
-                )
+                val tier = when {
+                    k.keepLevel >= 13 -> "castle3"
+                    k.keepLevel >= 6 -> "castle2"
+                    else -> "castle1"
+                }
+                val castleSprite = sprites[tier]
+                val shielded = k.shieldUntilEpochMs > nowEpochMs
+                if (castleSprite != null) {
+                    val w = castleS * when (tier) { "castle3" -> 4.8f; "castle2" -> 4.4f; else -> 4.0f }
+                    val box = drawMapSprite(castleSprite, pos, w)
+                    drawPennant(Offset(box.center.x + w * 0.06f, box.top + box.height * 0.2f), castleS * 0.7f, wall)
+                    if (shielded) drawShieldDome(Offset(pos.x, pos.y - box.height * 0.2f), w * 0.58f)
+                } else {
+                    drawCastle(
+                        c = pos,
+                        s = castleS,
+                        wallColor = wall,
+                        bannerColor = banner,
+                        shielded = shielded
+                    )
+                }
                 if (showLabels || isMine) {
                     drawMapLabel(
                         textMeasurer,
                         k.lordName.ifBlank { "Lord" } + if (k.isBot) " (AI)" else "",
-                        Offset(pos.x, pos.y + castleS * 0.8f),
+                        Offset(pos.x, pos.y + castleS * (if (sprites.isEmpty()) 0.8f else 1.25f)),
                         if (isMine) GildedHighlight else ParchmentIvory
                     )
                 }

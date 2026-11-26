@@ -20,7 +20,7 @@
     KEEP: { label: "Obsidian Keep", x: 1030, y: 790, sprites: ["keep_1.webp", "keep_2.webp", "keep_3.webp", "keep_4.webp"], w: [360, 400, 420, 440], flames: [[0.33, 0.25], [0.62, 0.25], [0.45, 0.33]] },
     ALLIANCE_HALL: { label: "Alliance Hall", x: 640, y: 1010, sprites: ["hall_1.webp", "hall_2.webp", "hall_3.webp", "hall_4.webp"], w: [190, 220, 235, 250] },
     BARRACKS: { label: "War Barracks", x: 1395, y: 1085, sprites: ["barracks_1.webp", "barracks_2.webp", "barracks_3.webp", "barracks_4.webp"], w: [210, 245, 265, 285] },
-    ARCHERY: { label: "Ashbow Range", x: 660, y: 1290, r: 80 },
+    ARCHERY: { label: "Ashbow Range", x: 730, y: 1255, sprites: ["archery_1.webp", "archery_2.webp", "archery_3.webp", "archery_4.webp"], w: [180, 230, 240, 250] },
     SIEGE: { label: "Siege Foundry", x: 960, y: 1450, r: 80 },
     STABLES: { label: "Dread Stables", x: 1290, y: 1290, r: 80 },
     FARM: { label: "Farmstead", x: 1800, y: 1330, r: 100, resource: "FOOD" },

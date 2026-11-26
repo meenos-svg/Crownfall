@@ -45,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.data.Alliance
 import com.example.data.AlliancePact
+import com.example.data.Landmark
 import com.example.data.GameCatalog
 import com.example.data.PlayerEmpire
 import com.example.data.Stronghold
@@ -436,6 +437,132 @@ fun AlliancePactsPanel(
                     }
                 }
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LandmarkSheet(
+    landmark: Landmark,
+    empire: PlayerEmpire,
+    alliance: Alliance?,
+    isFriendly: Boolean,
+    onDismiss: () -> Unit,
+    onAttack: (Long, Long, Long, Long) -> Unit,
+    onReinforce: (Long, Long, Long, Long) -> Unit,
+    onWithdraw: () -> Unit
+) {
+    val myGarrison = landmark.garrisonOf(empire.userId)
+    val travelMs = GameCatalog.marchDurationMs(empire.coordX, empire.coordY, landmark.coordX, landmark.coordY, alliance)
+    var troopShare by remember(landmark.id) { mutableFloatStateOf(0.5f) }
+    val sendInf = (empire.infantry * troopShare).roundToLong()
+    val sendCav = (empire.cavalry * troopShare).roundToLong()
+    val sendArc = (empire.archers * troopShare).roundToLong()
+    val sendSiege = (empire.siege * troopShare).roundToLong()
+    val sentPower = sendInf * TroopType.INFANTRY.power + sendCav * TroopType.CAVALRY.power +
+        sendArc * TroopType.ARCHERS.power + sendSiege * TroopType.SIEGE.power
+    val payout = if (landmark.resource == null) "${formatCompact(landmark.yieldPerHour)} alliance tech XP / hour"
+    else "${formatCompact(landmark.yieldPerHour)} ${landmark.resource.displayName} / hour, shared by the garrison"
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = ForgedIron
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(landmark.name, style = MaterialTheme.typography.headlineSmall, color = ParchmentIvory)
+                    Text("(${landmark.coordX}, ${landmark.coordY}) • ETA ${formatCountdown(travelMs)}",
+                        style = MonoStatStyle, color = CrownGold)
+                }
+                val (badge, color) = when {
+                    !landmark.isHeld -> "GUARDED" to WeatheredAsh
+                    landmark.holderAllianceId == empire.allianceId -> "[${landmark.holderTag}] OURS" to CrownGold
+                    isFriendly -> "[${landmark.holderTag}] PACT" to RoyalAzure
+                    else -> "[${landmark.holderTag}]" to EmberCrimson
+                }
+                Surface(color = BurnishedCharcoal, border = BorderStroke(1.dp, color), shape = RoundedCornerShape(8.dp)) {
+                    Text(badge, style = MaterialTheme.typography.labelMedium, color = color,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp))
+                }
+            }
+
+            Text(payout, style = MaterialTheme.typography.bodyMedium, color = GildedHighlight)
+            Text(
+                if (landmark.isHeld) "Defense ~${formatCompact(landmark.defenseEstimate)} • garrison ${formatCompact(landmark.garrisonPower)} + palisade"
+                else "Guardians ${formatCompact(landmark.guardianPower)}. Defeat them to claim it for your alliance; your survivors stay as its garrison.",
+                style = MaterialTheme.typography.bodySmall,
+                color = WeatheredAsh
+            )
+            if (landmark.isHeld && landmark.garrisons.isEmpty()) {
+                Text("No garrison: it pays nothing and only the palisade defends it.",
+                    style = MaterialTheme.typography.bodySmall, color = EmberCrimson)
+            }
+
+            if (landmark.garrisons.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("GARRISON", style = MaterialTheme.typography.labelMedium, color = CrownGold)
+                    landmark.garrisons.take(8).forEach { g ->
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(g.playerName, style = MaterialTheme.typography.bodySmall,
+                                color = if (g.playerUid == empire.userId) GildedHighlight else ParchmentIvory,
+                                modifier = Modifier.weight(1f))
+                            Text(formatCompact(g.troopPower), style = MonoStatStyle, color = WeatheredAsh)
+                        }
+                    }
+                }
+            }
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Troops to send", style = MaterialTheme.typography.titleSmall, color = ParchmentIvory)
+                Text("${(troopShare * 100).toInt()}% (PWR ${formatCompact(sentPower)})", style = MonoStatStyle, color = GildedHighlight)
+            }
+            Slider(
+                value = troopShare,
+                onValueChange = { troopShare = it },
+                valueRange = 0.1f..1.0f,
+                colors = SliderDefaults.colors(
+                    thumbColor = CrownGold,
+                    activeTrackColor = if (isFriendly) RoyalAzure else WarCrimson,
+                    inactiveTrackColor = BurnishedCharcoal
+                )
+            )
+
+            if (isFriendly) {
+                GildedButton(
+                    text = "Reinforce garrison",
+                    icon = Icons.Filled.Shield,
+                    enabled = sentPower > 0L,
+                    onClick = { onReinforce(sendInf, sendCav, sendArc, sendSiege) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else {
+                CrimsonButton(
+                    text = if (landmark.isHeld) "Attack and seize it" else "Defeat the guardians",
+                    icon = Icons.Filled.Whatshot,
+                    enabled = sentPower > 0L && alliance != null,
+                    onClick = { onAttack(sendInf, sendCav, sendArc, sendSiege) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (alliance == null) {
+                    Text("Join an alliance to capture landmarks.", style = MaterialTheme.typography.bodySmall, color = WeatheredAsh)
+                }
+            }
+
+            if (myGarrison != null) {
+                OutlinedButton(onClick = onWithdraw, border = BorderStroke(1.dp, EtchedSteel), modifier = Modifier.fillMaxWidth()) {
+                    Text("Withdraw my troops (${formatCompact(myGarrison.troopPower)})", color = ParchmentIvory)
+                }
+            }
+            Spacer(Modifier.height(18.dp))
         }
     }
 }

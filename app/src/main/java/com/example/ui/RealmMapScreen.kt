@@ -75,6 +75,7 @@ import com.example.data.TroopType
 import com.example.data.WorldMarch
 import com.example.data.Stronghold
 import com.example.data.Realm
+import com.example.data.Landmark
 import com.example.data.VisitorCamp
 import com.example.data.WorldNpcNode
 import com.example.data.formatCompact
@@ -125,6 +126,14 @@ sealed interface MapTarget {
         override val coordX: Long = stronghold.coordX
         override val coordY: Long = stronghold.coordY
         override val power: Long = stronghold.defensePower(0L)
+    }
+
+    data class LandmarkSite(val landmark: Landmark) : MapTarget {
+        override val id: String = landmark.id
+        override val name: String = landmark.name
+        override val coordX: Long = landmark.coordX
+        override val coordY: Long = landmark.coordY
+        override val power: Long = landmark.defenseEstimate
     }
 
     data class CampSite(val camp: VisitorCamp) : MapTarget {
@@ -187,7 +196,11 @@ fun RealmMapScreen(
     camps: List<VisitorCamp> = emptyList(),
     onSelectRealm: (String) -> Unit = {},
     onSendExpedition: (Long, Long, Long, Long, Long, Long) -> Unit = { _, _, _, _, _, _ -> },
-    onRecallCamp: () -> Unit = {}
+    onRecallCamp: () -> Unit = {},
+    landmarks: List<Landmark> = emptyList(),
+    onAttackLandmark: (Landmark, Long, Long, Long, Long) -> Unit = { _, _, _, _, _ -> },
+    onReinforceLandmark: (Landmark, Long, Long, Long, Long) -> Unit = { _, _, _, _, _ -> },
+    onWithdrawLandmark: (Landmark) -> Unit = {}
 ) {
     val homeRealmId = homeEmpire.homeRealmId
     val shownRealmId = viewedRealmId.ifBlank { homeRealmId }
@@ -195,6 +208,7 @@ fun RealmMapScreen(
     val myCamp = camps.firstOrNull { it.ownerUid == empire.userId }
     val campHere = myCamp?.takeIf { it.realmId == shownRealmId }
     val campsHere = camps.filter { it.realmId == shownRealmId }
+    val landmarksHere = landmarks.filter { it.realmId == shownRealmId }
     val strongholdsHere = strongholds.filter { it.realmId.isBlank() || it.realmId == shownRealmId }
     var expeditionSpot by remember { mutableStateOf<Pair<Long, Long>?>(null) }
 
@@ -209,8 +223,9 @@ fun RealmMapScreen(
     val canFound = empire.allianceRole == "LEADER" && ownStronghold == null &&
         (!visiting || campHere?.status == "CAMPED")
 
-    val allTargets = remember(kingdoms, strongholdsHere, campsHere) {
+    val allTargets = remember(kingdoms, strongholdsHere, campsHere, landmarksHere) {
         strongholdsHere.map { MapTarget.StrongholdSite(it) } +
+            landmarksHere.map { MapTarget.LandmarkSite(it) } +
             campsHere.map { MapTarget.CampSite(it) } +
             kingdoms.map { MapTarget.PlayerCastle(it) } +
             GameCatalog.worldNpcNodes.map { MapTarget.NpcSite(it) }
@@ -399,6 +414,30 @@ fun RealmMapScreen(
                 style = Stroke(width = 2f)
             )
 
+            // Territory zones: each castle, stronghold and held landmark claims the land around it
+            val tilePx = minOf(canvasSize.width, canvasSize.height) * zoomScale / 60f
+            fun zoneColor(allianceId: String, ownerUid: String? = null): Color = when {
+                ownerUid != null && ownerUid == empire.userId -> CrownGold
+                allianceId.isNotBlank() && allianceId == empire.allianceId -> RoyalAzure
+                allianceId.isNotBlank() && allianceId in pactAllianceIds -> Color(0xFF6FB7E0)
+                allianceId.isNotBlank() -> EmberCrimson
+                else -> WeatheredAsh
+            }
+            fun zone(center: Offset, tiles: Float, color: Color) {
+                val r = tiles * tilePx
+                drawCircle(color.copy(alpha = 0.10f), radius = r, center = center)
+                drawCircle(color.copy(alpha = 0.32f), radius = r, center = center, style = Stroke(width = 2f))
+            }
+            kingdoms.forEach { k ->
+                zone(worldToScreen(k.coordX, k.coordY, canvasSize), 3f + k.keepLevel / 3f, zoneColor(k.allianceId, k.ownerUid))
+            }
+            strongholdsHere.forEach { sh ->
+                zone(worldToScreen(sh.coordX, sh.coordY, canvasSize), 7f, zoneColor(sh.allianceId))
+            }
+            landmarksHere.filter { it.isHeld }.forEach { lm ->
+                zone(worldToScreen(lm.coordX, lm.coordY, canvasSize), 4f, zoneColor(lm.holderAllianceId))
+            }
+
             // Animated Real-Time Marching Vectors
             val dashEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f), 0f)
             activeMarches.forEach { march ->
@@ -449,6 +488,17 @@ fun RealmMapScreen(
                         null -> ArcaneEmerald
                     }
                     drawResourceSite(pos, markerS * 0.62f, node.resourceType, resColor)
+                }
+            }
+
+            // Landmarks
+            landmarksHere.forEach { lm ->
+                val pos = worldToScreen(lm.coordX, lm.coordY, canvasSize)
+                val holder = if (lm.isHeld) zoneColor(lm.holderAllianceId) else null
+                drawLandmark(pos, markerS * 0.95f, lm.kind, holder)
+                if (showLabels) {
+                    val label = if (lm.isHeld) "${lm.name} [${lm.holderTag}]" else lm.name
+                    drawMapLabel(textMeasurer, label, Offset(pos.x, pos.y + markerS * 0.9f), holder ?: ParchmentIvory)
                 }
             }
 
@@ -602,6 +652,7 @@ fun RealmMapScreen(
                     key = { it.id }
                 ) { target ->
                     val badgeColor = when (target) {
+                        is MapTarget.LandmarkSite -> if (target.landmark.isHeld) CrownGold else WeatheredAsh
                         is MapTarget.CampSite -> EmberCrimson
                         is MapTarget.StrongholdSite -> if (target.stronghold.callForAid) CrownGold else RoyalAzure
                         is MapTarget.PlayerCastle -> EmberCrimson
@@ -758,6 +809,22 @@ fun RealmMapScreen(
         )
     }
 
+    (selectedTarget as? MapTarget.LandmarkSite)?.let { site ->
+        val live = landmarks.firstOrNull { it.id == site.landmark.id } ?: site.landmark
+        val friendly = live.isHeld && empire.allianceId.isNotBlank() &&
+            (live.holderAllianceId == empire.allianceId || live.holderAllianceId in pactAllianceIds)
+        LandmarkSheet(
+            landmark = live,
+            empire = empire,
+            alliance = alliance,
+            isFriendly = friendly,
+            onDismiss = { selectedTarget = null },
+            onAttack = { i, c, a, sg -> onAttackLandmark(live, i, c, a, sg); selectedTarget = null },
+            onReinforce = { i, c, a, sg -> onReinforceLandmark(live, i, c, a, sg); selectedTarget = null },
+            onWithdraw = { onWithdrawLandmark(live); selectedTarget = null }
+        )
+    }
+
     expeditionSpot?.let { (ex, ey) ->
         ExpeditionDialog(
             x = ex,
@@ -780,7 +847,7 @@ fun RealmMapScreen(
     }
 
     // Tactical Target Command Bottom Sheet
-    selectedTarget?.takeIf { it !is MapTarget.StrongholdSite }?.let { target ->
+    selectedTarget?.takeIf { it !is MapTarget.StrongholdSite && it !is MapTarget.LandmarkSite }?.let { target ->
         val isOwnCastle = target.id == empire.userId ||
             (target is MapTarget.CampSite && target.camp.ownerUid == empire.userId)
         val isResource = target is MapTarget.NpcSite && target.node.targetType == "RESOURCE"

@@ -275,6 +275,88 @@ fun DrawScope.drawCamp(c: Offset, s: Float, canvas: Color, flag: Color, arriving
     }
 }
 
+/**
+ * A landmark (control point): a stone plinth with a picture of what it is, and a banner
+ * in the holder's colour (none while it is still held by its guardians).
+ */
+fun DrawScope.drawLandmark(c: Offset, s: Float, kind: String, holder: Color?) {
+    groundShadow(c, s * 1.05f)
+    val x = c.x
+    val y = c.y
+    // plinth
+    val plinth = Path().apply {
+        moveTo(x - 1.0f * s, y + 0.55f * s)
+        lineTo(x - 0.8f * s, y - 0.35f * s)
+        lineTo(x + 0.8f * s, y - 0.35f * s)
+        lineTo(x + 1.0f * s, y + 0.55f * s)
+        close()
+    }
+    drawPath(plinth, StoneMid)
+    drawRect(Color.Black.copy(alpha = 0.22f), Offset(x + 0.3f * s, y - 0.35f * s), Size(0.6f * s, 0.9f * s))
+    drawPath(plinth, Outline, style = Stroke(width = (s * 0.07f).coerceAtLeast(1.1f)))
+
+    when (kind) {
+        "MINE" -> {
+            drawCircle(GateDark, radius = 0.42f * s, center = Offset(x, y + 0.05f * s))
+            drawRect(GateDark, Offset(x - 0.42f * s, y + 0.05f * s), Size(0.84f * s, 0.5f * s))
+            drawRect(Color(0xFF6B4A2B), Offset(x - 0.5f * s, y - 0.4f * s), Size(0.12f * s, 0.95f * s))
+            drawRect(Color(0xFF6B4A2B), Offset(x + 0.38f * s, y - 0.4f * s), Size(0.12f * s, 0.95f * s))
+            drawRect(Color(0xFF6B4A2B), Offset(x - 0.55f * s, y - 0.45f * s), Size(1.1f * s, 0.12f * s))
+            drawCircle(Color(0xFFFFC94A), radius = 0.1f * s, center = Offset(x - 0.12f * s, y + 0.38f * s))
+            drawCircle(Color(0xFFFFC94A), radius = 0.08f * s, center = Offset(x + 0.12f * s, y + 0.42f * s))
+        }
+        "QUARRY" -> {
+            drawRect(StoneLight, Offset(x - 0.65f * s, y - 0.05f * s), Size(0.6f * s, 0.5f * s))
+            drawRect(StoneLight, Offset(x + 0.05f * s, y + 0.05f * s), Size(0.55f * s, 0.4f * s))
+            drawRect(StoneLight, Offset(x - 0.35f * s, y - 0.55f * s), Size(0.55f * s, 0.45f * s))
+            drawRect(Outline, Offset(x - 0.35f * s, y - 0.55f * s), Size(0.55f * s, 0.45f * s), style = Stroke(s * 0.05f))
+            drawRect(Outline, Offset(x - 0.65f * s, y - 0.05f * s), Size(0.6f * s, 0.5f * s), style = Stroke(s * 0.05f))
+        }
+        "LUMBER" -> {
+            val log = Color(0xFF8A5A33)
+            for (i in 0..2) {
+                val ly = y + 0.3f * s - i * 0.28f * s
+                val lx = x - 0.6f * s + i * 0.15f * s
+                drawRoundRect(log, Offset(lx, ly - 0.12f * s), Size(1.2f * s - i * 0.3f * s, 0.24f * s), CornerRadius(0.12f * s))
+                drawCircle(Color(0xFFD8B07A), radius = 0.1f * s, center = Offset(lx + 0.06f * s, ly))
+            }
+        }
+        "FARM" -> {
+            drawRect(Color(0xFFC9A23A), Offset(x - 0.7f * s, y - 0.25f * s), Size(1.4f * s, 0.7f * s))
+            for (i in 0..5) {
+                val sx = x - 0.6f * s + i * 0.24f * s
+                drawLine(Color(0xFF8A6A1F), Offset(sx, y + 0.42f * s), Offset(sx, y - 0.22f * s), strokeWidth = s * 0.05f)
+            }
+        }
+        else -> { // SHRINE: a glowing obelisk
+            drawCircle(Color(0xFF9B7BFF).copy(alpha = 0.3f), radius = 0.6f * s, center = Offset(x, y - 0.4f * s))
+            val ob = Path().apply {
+                moveTo(x, y - 1.2f * s)
+                lineTo(x + 0.22f * s, y - 0.95f * s)
+                lineTo(x + 0.28f * s, y + 0.4f * s)
+                lineTo(x - 0.28f * s, y + 0.4f * s)
+                lineTo(x - 0.22f * s, y - 0.95f * s)
+                close()
+            }
+            drawPath(ob, StoneLight)
+            drawPath(ob, Outline, style = Stroke(s * 0.06f))
+            drawCircle(Color(0xFFCDB8FF), radius = 0.1f * s, center = Offset(x, y - 0.55f * s))
+        }
+    }
+
+    if (holder != null) {
+        drawLine(Outline, Offset(x + 0.8f * s, y - 0.35f * s), Offset(x + 0.8f * s, y - 1.25f * s),
+            strokeWidth = (s * 0.06f).coerceAtLeast(1.1f))
+        val flag = Path().apply {
+            moveTo(x + 0.8f * s, y - 1.25f * s)
+            lineTo(x + 1.35f * s, y - 1.1f * s)
+            lineTo(x + 0.8f * s, y - 0.95f * s)
+            close()
+        }
+        drawPath(flag, holder)
+    }
+}
+
 /** A resource site: a round badge with a small picture of what it produces. */
 fun DrawScope.drawResourceSite(c: Offset, s: Float, type: ResourceType?, accent: Color) {
     groundShadow(c, s * 0.8f)

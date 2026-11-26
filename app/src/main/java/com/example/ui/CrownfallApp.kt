@@ -126,6 +126,7 @@ fun CrownfallMainShell(
     val camps by viewModel.camps.collectAsStateWithLifecycle()
     val viewedRealmId by viewModel.viewedRealmId.collectAsStateWithLifecycle()
     val mapEmpire by viewModel.mapEmpire.collectAsStateWithLifecycle()
+    val landmarks by viewModel.landmarks.collectAsStateWithLifecycle()
     val nowEpochMs by viewModel.nowEpochMs.collectAsStateWithLifecycle()
     val perResourceLastHarvestMs by viewModel.perResourceLastHarvestMs.collectAsStateWithLifecycle()
     val snackbarMsg by viewModel.snackbarMessage.collectAsStateWithLifecycle()
@@ -334,7 +335,11 @@ fun CrownfallMainShell(
                                         camps = camps,
                                         onSelectRealm = viewModel::selectRealm,
                                         onSendExpedition = viewModel::sendExpedition,
-                                        onRecallCamp = viewModel::recallCamp
+                                        onRecallCamp = viewModel::recallCamp,
+                                        landmarks = landmarks,
+                                        onAttackLandmark = viewModel::attackLandmark,
+                                        onReinforceLandmark = viewModel::reinforceLandmark,
+                                        onWithdrawLandmark = viewModel::withdrawLandmarkGarrison
                                     )
 
                                     2 -> AllianceScreen(

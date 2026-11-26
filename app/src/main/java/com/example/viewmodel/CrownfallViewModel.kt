@@ -24,6 +24,8 @@ import com.example.data.Stronghold
 import com.example.data.StrongholdRepository
 import com.example.data.AlliancePact
 import com.example.data.ExpeditionRepository
+import com.example.data.Landmark
+import com.example.data.LandmarkRepository
 import com.example.data.Realm
 import com.example.data.VisitorCamp
 import com.example.data.MarchStillMarching
@@ -54,7 +56,8 @@ class CrownfallViewModel(
     val currentUserId: String,
     initialDisplayName: String?,
     private val strongholdRepository: StrongholdRepository = StrongholdRepository(),
-    private val expeditionRepository: ExpeditionRepository = ExpeditionRepository()
+    private val expeditionRepository: ExpeditionRepository = ExpeditionRepository(),
+    private val landmarkRepository: LandmarkRepository = LandmarkRepository()
 ) : ViewModel() {
 
     private val _nowEpochMs = MutableStateFlow(System.currentTimeMillis())
@@ -232,6 +235,35 @@ class CrownfallViewModel(
             expeditionRepository.recallCamp()
                 .onSuccess { postMessage("Camp packed up. Your troops are heading home.") }
                 .onFailure { postMessage(it.localizedMessage ?: "Could not recall the camp.") }
+        }
+    }
+
+    val landmarks: StateFlow<List<Landmark>> = landmarkRepository.observeLandmarks()
+        .catch { error ->
+            Log.w(TAG, "Error observing landmarks", error)
+            emit(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
+
+    fun attackLandmark(landmark: Landmark, infantry: Long, cavalry: Long, archers: Long, siege: Long) {
+        if (currentAlliance.value == null) {
+            postMessage("Join an alliance to capture and hold landmarks.")
+            return
+        }
+        dispatchMarch("RAID", "LANDMARK", landmark.id, landmark.name, landmark.coordX, landmark.coordY,
+            infantry, cavalry, archers, siege)
+    }
+
+    fun reinforceLandmark(landmark: Landmark, infantry: Long, cavalry: Long, archers: Long, siege: Long) {
+        dispatchMarch("REINFORCE", "LANDMARK", landmark.id, landmark.name, landmark.coordX, landmark.coordY,
+            infantry, cavalry, archers, siege)
+    }
+
+    fun withdrawLandmarkGarrison(landmark: Landmark) {
+        runAction {
+            landmarkRepository.withdraw(landmark)
+                .onSuccess { postMessage("Your garrison left ${landmark.name} with its share of the riches.") }
+                .onFailure { postMessage(it.localizedMessage ?: "Could not withdraw troops.") }
         }
     }
 

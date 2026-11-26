@@ -60,3 +60,13 @@ Most need a second Google account (a friend or a second phone).
 - [ ] Alliance leader camped abroad can raise the stronghold in that realm
 - [ ] Rally button is hidden abroad
 - [ ] New accounts land in the emptiest realm
+
+## Landmarks & territory (SQL part 9)
+- [ ] Six landmarks per realm on the map (mine, quarry, lumberyard, granary, cold mine, shrine)
+- [ ] Territory zones tint around castles, strongholds and held landmarks (gold you, blue alliance, red rivals)
+- [ ] Defeat a landmark's guardians → it flies your alliance banner, your survivors become its garrison
+- [ ] Alliance member reinforces a held landmark
+- [ ] After a while the garrison gets paid (check gold/stone/etc. go up); the Shrine raises alliance tech XP
+- [ ] Withdraw my troops pays your share and brings them home
+- [ ] A rival alliance attacks it: if they win it changes hands and the old garrison goes home
+- [ ] Capture a landmark in another realm from your camp

@@ -35,6 +35,8 @@ Most need a second Google account (a friend or a second phone).
 - [ ] Each realm shows its painted map (Crownlands green, Aether Reach misty, Emberfall volcanic)
 - [ ] Bastions, nodes and landmarks sit on land, not in lakes or lava
 - [ ] Zooming in still looks sharp enough
+- [ ] No castles in lakes, lava or mountains (existing ones were moved)
+- [ ] Relocating / camping / raising a stronghold in water or lava is refused with a clear message
 
 ## Citadel
 - [ ] Chimney smoke and building colours look right on your phone

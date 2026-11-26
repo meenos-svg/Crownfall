@@ -75,7 +75,7 @@ class AllianceRepository(
             senderUid = uid,
             senderName = empire.lordName,
             senderRole = "LEADER",
-            body = "${empire.lordName} founded [$cleanTag] $cleanName!",
+            body = "${empire.lordName} founded [$cleanTag]$cleanName!",
             messageType = "SYSTEM",
             memberUids = listOf(uid)
         )
@@ -227,7 +227,7 @@ class AllianceRepository(
         sendMessage(
             empire,
             alliance,
-            "WAR RALLY called against $targetName ($targetX, $targetY)! Join before launch!",
+            "WAR RALLY called against $targetName ($targetX,$targetY)! Join before launch!",
             messageType = "RALLY"
         )
         return Result.success(Unit)
@@ -300,4 +300,129 @@ class AllianceRepository(
         ralliesByAlliance.value = ralliesByAlliance.value + (alliance.id to updatedList)
         return Result.success(battleLog)
     }
-}
+
+    suspend fun donateAid(
+        empire: PlayerEmpire,
+        alliance: Alliance,
+        request: ResourceAidRequest,
+        amount: Long
+    ): Result<Unit> {
+        val uid = empire.userId.ifBlank { "local-player-1" }
+        val gift = amount.coerceAtLeast(1L)
+        val current = aidByAlliance.value[alliance.id].orEmpty()
+        val updated = current.map { item ->
+            if (item.id == request.id) {
+                val nextFulfilled = (item.fulfilledAmount + gift).coerceAtMost(item.requestedAmount)
+                item.copy(
+                    fulfilledAmount = nextFulfilled,
+                    status = if (nextFulfilled >= item.requestedAmount) "FULFILLED" else item.status,
+                    donorUids = (item.donorUids + uid).distinct()
+                )
+            } else {
+                item
+            }
+        }
+        aidByAlliance.value = aidByAlliance.value + (alliance.id to updated)
+        return Result.success(Unit)
+    }
+
+    suspend fun contributeAllianceTech(
+        empire: PlayerEmpire,
+        alliance: Alliance,
+        techType: AllianceTechType
+    ): Result<Unit> {
+        alliancesFlow.value = alliancesFlow.value.map { item ->
+            if (item.id == alliance.id) {
+                val nextXp = item.techXp + 25L
+                val leveledUp = nextXp >= 100L
+                val resetXp = if (leveledUp) 0L else nextXp
+                when (techType) {
+                    AllianceTechType.MARCH_SPEED -> item.copy(
+                        techXp = resetXp,
+                        techMarchLevel = if (leveledUp) (item.techMarchLevel + 1L).coerceAtMost(10L) else item.techMarchLevel
+                    )
+                    AllianceTechType.RESOURCE_YIELD -> item.copy(
+                        techXp = resetXp,
+                        techYieldLevel = if (leveledUp) (item.techYieldLevel + 1L).coerceAtMost(10L) else item.techYieldLevel
+                    )
+                    AllianceTechType.RALLY_ATTACK -> item.copy(
+                        techXp = resetXp,
+                        techAttackLevel = if (leveledUp) (item.techAttackLevel + 1L).coerceAtMost(10L) else item.techAttackLevel
+                    )
+                    AllianceTechType.CITADEL_DEFENSE -> item.copy(
+                        techXp = resetXp,
+                        techDefenseLevel = if (leveledUp) (item.techDefenseLevel + 1L).coerceAtMost(10L) else item.techDefenseLevel
+                    )
+                }
+            } else {
+                item
+            }
+        }
+        return Result.success(Unit)
+    }
+
+    suspend fun inviteLord(
+        empire: PlayerEmpire,
+        alliance: Alliance,
+        targetUid: String,
+        targetName: String
+    ): Result<Unit> {
+        val uid = empire.userId.ifBlank { "local-player-1" }
+        val invite = AllianceInvite(
+            id = UUID.randomUUID().toString(),
+            allianceId = alliance.id,
+            allianceName = alliance.name,
+            allianceTag = alliance.tag,
+            inviterUid = uid,
+            inviterName = empire.lordName,
+            targetUid = targetUid,
+            targetName = targetName,
+            status = "PENDING"
+        )
+        invitesFlow.value = listOf(invite) + invitesFlow.value
+        return Result.success(Unit)
+    }
+
+    suspend fun toggleOfficer(
+        alliance: Alliance,
+        targetUid: String
+    ): Result<Unit> {
+        alliancesFlow.value = alliancesFlow.value.map { item ->
+            if (item.id == alliance.id) {
+                val nextOfficers = if (targetUid in item.officerUids) {
+                    item.officerUids.filterNot { it == targetUid }
+                } else {
+                    (item.officerUids + targetUid).distinct()
+                }
+                item.copy(officerUids = nextOfficers)
+            } else {
+                item
+            }
+        }
+        return Result.success(Unit)
+    }
+
+    suspend fun transferLeadership(
+        alliance: Alliance,
+        newLeaderUid: String
+    ): Result<Unit> {
+        alliancesFlow.value = alliancesFlow.value.map { item ->
+            if (item.id == alliance.id) {
+                val nextOfficers = (item.officerUids.filterNot { it == newLeaderUid } + item.leaderUid).distinct()
+                item.copy(
+                    leaderUid = newLeaderUid,
+                    officerUids = nextOfficers
+                )
+            } else {
+                item
+            }
+        }
+        return Result.success(Unit)
+    }
+
+    suspend fun kickMember(
+        alliance: Alliance,
+        targetUid: String
+    ): Result<Unit> {
+        alli
+        

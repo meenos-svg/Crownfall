@@ -44,8 +44,10 @@ class EmpireRepository(
         val name = displayName?.trim()?.takeIf { it.length >= 2 }?.take(28) ?: "Lord"
         val row = callPlayerFunction("create_player", buildJsonObject { put("p_username", name) })
         publish(row)
-        refreshKingdoms()
         startPolling()
+        runCatching { refreshKingdoms() }
+            .onFailure { Log.w(TAG, "Initial kingdom load failed", it) }
+        Unit
     }
 
     private fun startPolling() {
@@ -76,12 +78,21 @@ class EmpireRepository(
                 limit(200)
             }
             .decodeList<PlayerRow>()
-        kingdomsFlow.value = rows.map { it.toKingdom() }
+        val me = empireFlow.value?.userId
+        val others = rows.filter { it.id != me }.map { it.toKingdom() }
+        val mine = lastOwnRow?.toKingdom()
+        kingdomsFlow.value = (listOfNotNull(mine) + others).sortedByDescending { it.power }
     }
+
+    private var lastOwnRow: PlayerRow? = null
 
     private fun publish(row: PlayerRow) {
         homeRealmId = row.homeRealmId
+        lastOwnRow = row
         empireFlow.value = row.toEmpire()
+        // Always keep our own castle on the map, even before the realm list loads.
+        val others = kingdomsFlow.value.filter { it.ownerUid != row.id }
+        kingdomsFlow.value = (others + row.toKingdom()).sortedByDescending { it.power }
     }
 
     private suspend fun callPlayerFunction(name: String, params: JsonObject = JsonObject(emptyMap())): PlayerRow =

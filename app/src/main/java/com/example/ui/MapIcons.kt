@@ -231,6 +231,50 @@ fun DrawScope.drawStronghold(
     )
 }
 
+/** A visitor camp: two canvas tents and a campfire. Faded while it is still travelling. */
+fun DrawScope.drawCamp(c: Offset, s: Float, canvas: Color, flag: Color, arriving: Boolean, pulse: Float) {
+    val alpha = if (arriving) 0.45f else 1f
+    groundShadow(c, s * 0.9f)
+    if (arriving) {
+        drawCircle(Color(0xFF9B7BFF).copy(alpha = 0.35f * (1f - pulse)), radius = s * (1.2f + pulse), center = c,
+            style = Stroke(s * 0.1f))
+    }
+    val x = c.x
+    val y = c.y
+    fun tent(cx: Float, w: Float, h: Float, color: Color) {
+        val p = Path().apply {
+            moveTo(cx, y - h)
+            lineTo(cx + w, y + 0.45f * s)
+            lineTo(cx - w, y + 0.45f * s)
+            close()
+        }
+        drawPath(p, color.copy(alpha = alpha))
+        drawPath(p, Outline.copy(alpha = alpha), style = Stroke((s * 0.07f).coerceAtLeast(1.1f)))
+        val door = Path().apply {
+            moveTo(cx, y - h * 0.15f)
+            lineTo(cx + w * 0.3f, y + 0.45f * s)
+            lineTo(cx - w * 0.3f, y + 0.45f * s)
+            close()
+        }
+        drawPath(door, GateDark.copy(alpha = alpha))
+    }
+    tent(x + 0.42f * s, 0.55f * s, 0.55f * s, canvas.copy(red = canvas.red * 0.85f, green = canvas.green * 0.85f, blue = canvas.blue * 0.85f))
+    tent(x - 0.25f * s, 0.75f * s, 0.95f * s, canvas)
+    drawLine(Outline.copy(alpha = alpha), Offset(x - 0.25f * s, y - 0.95f * s), Offset(x - 0.25f * s, y - 1.5f * s),
+        strokeWidth = (s * 0.06f).coerceAtLeast(1.1f))
+    val f = Path().apply {
+        moveTo(x - 0.25f * s, y - 1.5f * s)
+        lineTo(x + 0.25f * s, y - 1.38f * s)
+        lineTo(x - 0.25f * s, y - 1.26f * s)
+        close()
+    }
+    drawPath(f, flag.copy(alpha = alpha))
+    if (!arriving) {
+        drawCircle(Color(0xFFFF8A3D).copy(alpha = 0.3f + 0.2f * pulse), radius = s * 0.28f, center = Offset(x + 0.95f * s, y + 0.35f * s))
+        drawCircle(Color(0xFFFFC94A), radius = s * 0.1f, center = Offset(x + 0.95f * s, y + 0.35f * s))
+    }
+}
+
 /** A resource site: a round badge with a small picture of what it produces. */
 fun DrawScope.drawResourceSite(c: Offset, s: Float, type: ResourceType?, accent: Color) {
     groundShadow(c, s * 0.8f)

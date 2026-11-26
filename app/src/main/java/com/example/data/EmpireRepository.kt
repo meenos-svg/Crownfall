@@ -34,6 +34,17 @@ class EmpireRepository(
     private val empireFlow = MutableStateFlow<PlayerEmpire?>(null)
     private val kingdomsFlow = MutableStateFlow<List<RealmKingdom>>(emptyList())
     private var homeRealmId: String? = null
+    private var viewedRealmId: String? = null
+
+    /** Which realm the map shows; null means home. */
+    fun setViewedRealm(realmId: String?) {
+        if (realmId == viewedRealmId) return
+        viewedRealmId = realmId
+        kingdomsFlow.value = if (realmId == null || realmId == homeRealmId) {
+            listOfNotNull(lastOwnRow?.toKingdom())
+        } else emptyList()
+        scope.launch { runCatching { refreshKingdoms() } }
+    }
     private var pollJob: Job? = null
 
     fun observeEmpire(userId: String): Flow<PlayerEmpire?> = empireFlow
@@ -72,7 +83,8 @@ class EmpireRepository(
     }
 
     private suspend fun refreshKingdoms() {
-        val realm = homeRealmId ?: return
+        val realm = viewedRealmId ?: homeRealmId ?: return
+        val atHome = realm == homeRealmId
         val rows = client.from("players")
             .select {
                 filter { eq("home_realm_id", realm) }
@@ -82,7 +94,8 @@ class EmpireRepository(
             .decodeList<PlayerRow>()
         val me = empireFlow.value?.userId
         val others = rows.filter { it.id != me }.map { it.toKingdom() }
-        val mine = lastOwnRow?.toKingdom()
+        if (realm != (viewedRealmId ?: homeRealmId)) return   // the player switched realms meanwhile
+        val mine = if (atHome) lastOwnRow?.toKingdom() else null
         kingdomsFlow.value = (listOfNotNull(mine) + others).sortedByDescending { it.power }
     }
 
@@ -93,6 +106,7 @@ class EmpireRepository(
         lastOwnRow = row
         empireFlow.value = row.toEmpire()
         // Always keep our own castle on the map, even before the realm list loads.
+        if (viewedRealmId != null && viewedRealmId != row.homeRealmId) return
         val others = kingdomsFlow.value.filter { it.ownerUid != row.id }
         kingdomsFlow.value = (others + row.toKingdom()).sortedByDescending { it.power }
     }

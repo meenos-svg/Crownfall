@@ -161,7 +161,8 @@ class WorldWarRepository(
         infantrySent: Long,
         cavalrySent: Long,
         archersSent: Long,
-        siegeSent: Long
+        siegeSent: Long,
+        fromCamp: Boolean = false
     ): Result<Unit> = supabaseResult {
         client.postgrest.rpc("dispatch_march", buildJsonObject {
             put("p_type", marchType)
@@ -171,6 +172,7 @@ class WorldWarRepository(
             put("p_cavalry", cavalrySent)
             put("p_archers", archersSent)
             put("p_siege", siegeSent)
+            if (fromCamp) put("p_from_camp", true)
         })
         GameSignals.poke()
     }

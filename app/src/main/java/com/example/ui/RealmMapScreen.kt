@@ -74,6 +74,8 @@ import com.example.data.ResourceType
 import com.example.data.TroopType
 import com.example.data.WorldMarch
 import com.example.data.Stronghold
+import com.example.data.Realm
+import com.example.data.VisitorCamp
 import com.example.data.WorldNpcNode
 import com.example.data.formatCompact
 import com.example.data.formatCountdown
@@ -125,6 +127,14 @@ sealed interface MapTarget {
         override val power: Long = stronghold.defensePower(0L)
     }
 
+    data class CampSite(val camp: VisitorCamp) : MapTarget {
+        override val id: String = camp.id
+        override val name: String = "${camp.ownerName}'s camp"
+        override val coordX: Long = camp.coordX
+        override val coordY: Long = camp.coordY
+        override val power: Long = camp.troopPower
+    }
+
     data class NpcSite(val node: WorldNpcNode) : MapTarget {
         override val id: String = node.id
         override val name: String = node.name
@@ -170,8 +180,24 @@ fun RealmMapScreen(
     onReinforceStronghold: (Stronghold, Long, Long, Long, Long) -> Unit = { _, _, _, _, _ -> },
     onWithdrawGarrison: (Stronghold) -> Unit = {},
     onCallForAid: (String) -> Unit = {},
-    onEndCallForAid: () -> Unit = {}
+    onEndCallForAid: () -> Unit = {},
+    realms: List<Realm> = emptyList(),
+    viewedRealmId: String = "",
+    homeEmpire: PlayerEmpire = empire,
+    camps: List<VisitorCamp> = emptyList(),
+    onSelectRealm: (String) -> Unit = {},
+    onSendExpedition: (Long, Long, Long, Long, Long, Long) -> Unit = { _, _, _, _, _, _ -> },
+    onRecallCamp: () -> Unit = {}
 ) {
+    val homeRealmId = homeEmpire.homeRealmId
+    val shownRealmId = viewedRealmId.ifBlank { homeRealmId }
+    val visiting = shownRealmId.isNotBlank() && shownRealmId != homeRealmId
+    val myCamp = camps.firstOrNull { it.ownerUid == empire.userId }
+    val campHere = myCamp?.takeIf { it.realmId == shownRealmId }
+    val campsHere = camps.filter { it.realmId == shownRealmId }
+    val strongholdsHere = strongholds.filter { it.realmId.isBlank() || it.realmId == shownRealmId }
+    var expeditionSpot by remember { mutableStateOf<Pair<Long, Long>?>(null) }
+
     var panOffset by remember { mutableStateOf(Offset.Zero) }
     var zoomScale by remember { mutableFloatStateOf(1.15f) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
@@ -180,10 +206,12 @@ fun RealmMapScreen(
 
     var foundSpot by remember { mutableStateOf<Pair<Long, Long>?>(null) }
     val ownStronghold = strongholds.firstOrNull { it.allianceId == empire.allianceId && empire.allianceId.isNotBlank() }
-    val canFound = empire.allianceRole == "LEADER" && ownStronghold == null
+    val canFound = empire.allianceRole == "LEADER" && ownStronghold == null &&
+        (!visiting || campHere?.status == "CAMPED")
 
-    val allTargets = remember(kingdoms, strongholds) {
-        strongholds.map { MapTarget.StrongholdSite(it) } +
+    val allTargets = remember(kingdoms, strongholdsHere, campsHere) {
+        strongholdsHere.map { MapTarget.StrongholdSite(it) } +
+            campsHere.map { MapTarget.CampSite(it) } +
             kingdoms.map { MapTarget.PlayerCastle(it) } +
             GameCatalog.worldNpcNodes.map { MapTarget.NpcSite(it) }
     }
@@ -210,8 +238,7 @@ fun RealmMapScreen(
     }
 
     // Generated landscape for this realm (same realm id -> same map for every player).
-    val realmId = kingdoms.firstOrNull { it.ownerUid == empire.userId }?.realmId
-        ?.takeIf { it.isNotBlank() } ?: "realm-1"
+    val realmId = shownRealmId.ifBlank { "realm-1" }
     val terrain by produceState<RealmTerrain?>(initialValue = null, realmId) {
         value = withContext(Dispatchers.Default) { RealmTerrainGenerator.generate(realmId) }
     }
@@ -241,10 +268,12 @@ fun RealmMapScreen(
                         )
                     }
                 }
-                .pointerInput(allTargets, panOffset, zoomScale, canvasSize, canFound) {
+                .pointerInput(allTargets, panOffset, zoomScale, canvasSize, canFound, visiting, myCamp?.id) {
                     detectTapGestures(
                         onLongPress = { press ->
-                            if (canFound) foundSpot = screenToWorld(press, canvasSize)
+                            val spot = screenToWorld(press, canvasSize)
+                            if (visiting && myCamp == null) expeditionSpot = spot
+                            else if (canFound) foundSpot = spot
                         }
                     ) { tap ->
                         val hit = allTargets.minByOrNull { target ->
@@ -425,7 +454,7 @@ fun RealmMapScreen(
 
             // Alliance strongholds
             val pulse = (nowEpochMs % 1600L) / 1600f
-            strongholds.forEach { sh ->
+            strongholdsHere.forEach { sh ->
                 val pos = worldToScreen(sh.coordX, sh.coordY, canvasSize)
                 val isOurs = sh.allianceId == empire.allianceId && empire.allianceId.isNotBlank()
                 val isPact = sh.allianceId in pactAllianceIds
@@ -451,6 +480,23 @@ fun RealmMapScreen(
                     Offset(pos.x, pos.y + shS * 1.25f),
                     if (isOurs) GildedHighlight else if (sh.callForAid) CrownGold else ParchmentIvory
                 )
+            }
+
+            // Visitor camps
+            campsHere.forEach { camp ->
+                val pos = worldToScreen(camp.coordX, camp.coordY, canvasSize)
+                val isMineCamp = camp.ownerUid == empire.userId
+                val isAllyCamp = empire.allianceId.isNotBlank() && camp.ownerAllianceId == empire.allianceId
+                val flag = when {
+                    isMineCamp -> CrownGold
+                    isAllyCamp -> RoyalAzure
+                    else -> EmberCrimson
+                }
+                drawCamp(pos, markerS * 0.9f, Color(0xFFD8C9A8), flag, camp.status != "CAMPED", pulse)
+                if (showLabels || isMineCamp) {
+                    drawMapLabel(textMeasurer, "${camp.ownerName}'s camp", Offset(pos.x, pos.y + markerS * 0.85f),
+                        if (isMineCamp) GildedHighlight else ParchmentIvory)
+                }
             }
 
             // Player castles (yours on top)
@@ -495,6 +541,25 @@ fun RealmMapScreen(
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            if (realms.size > 1) {
+                RealmSwitcher(
+                    realms = realms,
+                    shownRealmId = shownRealmId,
+                    homeRealmId = homeRealmId,
+                    campRealmId = myCamp?.realmId,
+                    onSelectRealm = onSelectRealm
+                )
+            }
+            if (visiting || myCamp != null) {
+                ExpeditionBanner(
+                    realms = realms,
+                    shownRealmId = shownRealmId,
+                    visiting = visiting,
+                    myCamp = myCamp,
+                    nowEpochMs = nowEpochMs,
+                    onRecallCamp = onRecallCamp
+                )
+            }
             Surface(
                 color = BasaltSlate.copy(alpha = 0.9f),
                 border = BorderStroke(1.dp, EtchedSteel),
@@ -537,6 +602,7 @@ fun RealmMapScreen(
                     key = { it.id }
                 ) { target ->
                     val badgeColor = when (target) {
+                        is MapTarget.CampSite -> EmberCrimson
                         is MapTarget.StrongholdSite -> if (target.stronghold.callForAid) CrownGold else RoyalAzure
                         is MapTarget.PlayerCastle -> EmberCrimson
                         is MapTarget.NpcSite -> if (target.node.targetType == "BASTION") WarCrimson else ArcaneEmerald
@@ -692,6 +758,17 @@ fun RealmMapScreen(
         )
     }
 
+    expeditionSpot?.let { (ex, ey) ->
+        ExpeditionDialog(
+            x = ex,
+            y = ey,
+            realmName = realms.firstOrNull { it.id == shownRealmId }?.name ?: "this realm",
+            homeEmpire = homeEmpire,
+            onConfirm = { i, c, a, sg -> onSendExpedition(ex, ey, i, c, a, sg); expeditionSpot = null },
+            onDismiss = { expeditionSpot = null }
+        )
+    }
+
     foundSpot?.let { (fx, fy) ->
         FoundStrongholdDialog(
             x = fx,
@@ -704,10 +781,12 @@ fun RealmMapScreen(
 
     // Tactical Target Command Bottom Sheet
     selectedTarget?.takeIf { it !is MapTarget.StrongholdSite }?.let { target ->
-        val isOwnCastle = target.id == empire.userId
+        val isOwnCastle = target.id == empire.userId ||
+            (target is MapTarget.CampSite && target.camp.ownerUid == empire.userId)
         val isResource = target is MapTarget.NpcSite && target.node.targetType == "RESOURCE"
         val isShielded = target is MapTarget.PlayerCastle && target.kingdom.shieldUntilEpochMs > nowEpochMs
-        val isAllyCastle = target is MapTarget.PlayerCastle &&
+        val isAllyCastle = (target is MapTarget.CampSite && empire.allianceId.isNotBlank() &&
+            target.camp.ownerAllianceId == empire.allianceId) || target is MapTarget.PlayerCastle &&
             empire.allianceId.isNotBlank() &&
             target.kingdom.allianceId == empire.allianceId
         val travelMs = GameCatalog.marchDurationMs(
@@ -778,6 +857,13 @@ fun RealmMapScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = WeatheredAsh
                     )
+                } else if (target is MapTarget.CampSite) {
+                    Text(
+                        text = "Visitor camp from another realm • ${formatCompact(target.camp.troopPower)} troop power. " +
+                            "Rout it and the survivors flee home through the Waygate.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = WeatheredAsh
+                    )
                 } else if (target is MapTarget.PlayerCastle) {
                     val tagText = if (target.kingdom.allianceTag.isNotBlank()) "[${target.kingdom.allianceTag}] " else ""
                     Text(
@@ -838,7 +924,11 @@ fun RealmMapScreen(
                                 icon = Icons.Filled.Whatshot,
                                 enabled = sentPower > 0L,
                                 onClick = {
-                                    val tType = if (target is MapTarget.PlayerCastle) "KINGDOM" else "BASTION"
+                                    val tType = when (target) {
+                                        is MapTarget.PlayerCastle -> "KINGDOM"
+                                        is MapTarget.CampSite -> "CAMP"
+                                        else -> "BASTION"
+                                    }
                                     onDispatchMarch(
                                         "RAID", tType, target.id, target.name,
                                         target.coordX, target.coordY,
@@ -850,12 +940,16 @@ fun RealmMapScreen(
                                     .weight(1f)
                                     .testTag("dispatch_raid_button")
                             )
-                            GildedButton(
+                            if (target !is MapTarget.CampSite && !visiting) GildedButton(
                                 text = "Rally",
                                 icon = Icons.Filled.Groups,
                                 enabled = alliance != null,
                                 onClick = {
-                                    val tType = if (target is MapTarget.PlayerCastle) "KINGDOM" else "BASTION"
+                                    val tType = when (target) {
+                                        is MapTarget.PlayerCastle -> "KINGDOM"
+                                        is MapTarget.CampSite -> "CAMP"
+                                        else -> "BASTION"
+                                    }
                                     onLaunchRally(
                                         tType, target.id, target.name,
                                         target.coordX, target.coordY, target.power
@@ -893,7 +987,9 @@ fun RealmMapScreen(
                             Spacer(Modifier.width(10.dp))
                             Text(
                                 text = when {
+                                    isOwnCastle && target is MapTarget.CampSite -> "Your camp. Its troops raid targets in this realm."
                                     isOwnCastle -> "This is your Obsidian Citadel."
+                                    isAllyCastle && target is MapTarget.CampSite -> "An allied camp."
                                     isAllyCastle -> "Allied Citadel — friendly territory."
                                     else -> "Protected by an active Obsidian Peace Shield."
                                 },

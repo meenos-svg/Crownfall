@@ -122,6 +122,10 @@ fun CrownfallMainShell(
     val aidRequests by viewModel.allianceAidRequests.collectAsStateWithLifecycle()
     val strongholds by viewModel.strongholds.collectAsStateWithLifecycle()
     val pacts by viewModel.alliancePacts.collectAsStateWithLifecycle()
+    val realms by viewModel.realms.collectAsStateWithLifecycle()
+    val camps by viewModel.camps.collectAsStateWithLifecycle()
+    val viewedRealmId by viewModel.viewedRealmId.collectAsStateWithLifecycle()
+    val mapEmpire by viewModel.mapEmpire.collectAsStateWithLifecycle()
     val nowEpochMs by viewModel.nowEpochMs.collectAsStateWithLifecycle()
     val perResourceLastHarvestMs by viewModel.perResourceLastHarvestMs.collectAsStateWithLifecycle()
     val snackbarMsg by viewModel.snackbarMessage.collectAsStateWithLifecycle()
@@ -305,10 +309,12 @@ fun CrownfallMainShell(
                                     )
 
                                     1 -> RealmMapScreen(
-                                        empire = emp,
+                                        empire = mapEmpire ?: emp,
                                         alliance = currentAlliance,
                                         kingdoms = kingdoms,
-                                        activeMarches = marches,
+                                        activeMarches = marches.filter {
+                                            it.realmId == (viewedRealmId ?: emp.homeRealmId)
+                                        },
                                         nowEpochMs = nowEpochMs,
                                         onDispatchMarch = viewModel::dispatchMarch,
                                         onRecallMarch = viewModel::recallMarch,
@@ -321,7 +327,14 @@ fun CrownfallMainShell(
                                         onReinforceStronghold = viewModel::reinforceStronghold,
                                         onWithdrawGarrison = viewModel::withdrawGarrison,
                                         onCallForAid = viewModel::callForAid,
-                                        onEndCallForAid = viewModel::endCallForAid
+                                        onEndCallForAid = viewModel::endCallForAid,
+                                        realms = realms,
+                                        viewedRealmId = viewedRealmId.orEmpty(),
+                                        homeEmpire = emp,
+                                        camps = camps,
+                                        onSelectRealm = viewModel::selectRealm,
+                                        onSendExpedition = viewModel::sendExpedition,
+                                        onRecallCamp = viewModel::recallCamp
                                     )
 
                                     2 -> AllianceScreen(

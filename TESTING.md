@@ -47,3 +47,16 @@ Most need a second Google account (a friend or a second phone).
 - [ ] Offer a pact from the Pacts tab; other leader accepts → both chats get "SEALED"
 - [ ] Pact allies can't raid each other's castles or strongholds; can reinforce each other
 - [ ] End a pact
+
+## Realms & expeditions (SQL part 8)
+- [ ] Realm chips at the top of the map switch between Crownlands, Aether Reach and Emberfall Wastes
+- [ ] Each realm has its own landscape, kingdoms and strongholds
+- [ ] In another realm, long-press → Expedition dialog → camp appears faded, then solid after ~90s
+- [ ] From the camp: raid a bastion / gather; survivors return to the camp, loot goes home
+- [ ] Raid a local kingdom from the camp
+- [ ] Raiding a kingdom in another realm from home is refused ("Set up a camp there first")
+- [ ] A local raids your camp: if they win, the camp is routed and survivors come home
+- [ ] Recall: banner counts down, troops arrive home
+- [ ] Alliance leader camped abroad can raise the stronghold in that realm
+- [ ] Rally button is hidden abroad
+- [ ] New accounts land in the emptiest realm

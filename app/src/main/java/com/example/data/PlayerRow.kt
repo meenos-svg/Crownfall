@@ -88,7 +88,8 @@ fun PlayerRow.toEmpire(): PlayerEmpire = PlayerEmpire(
     allianceTag = "",
     allianceRole = allianceRole,
     honor = honor,
-    shieldUntilEpochMs = shieldUntil.toEpochMs()
+    shieldUntilEpochMs = shieldUntil.toEpochMs(),
+    homeRealmId = homeRealmId
 )
 
 fun PlayerRow.toKingdom(): RealmKingdom = RealmKingdom(

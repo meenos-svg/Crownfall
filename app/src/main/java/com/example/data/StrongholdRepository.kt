@@ -19,6 +19,7 @@ data class StrongholdGarrison(
 
 data class Stronghold(
     val id: String,
+    val realmId: String,
     val allianceId: String,
     val allianceTag: String,
     val allianceName: String,
@@ -69,6 +70,7 @@ private data class NameOnlyRow(val username: String = "")
 private data class StrongholdRow(
     val id: String = "",
     @SerialName("alliance_id") val allianceId: String = "",
+    @SerialName("home_realm_id") val realmId: String = "",
     @SerialName("pos_x") val posX: Int = 0,
     @SerialName("pos_y") val posY: Int = 0,
     val level: Int = 1,
@@ -105,6 +107,7 @@ class StrongholdRepository {
         ).decodeList<StrongholdRow>().map { s ->
             Stronghold(
                 id = s.id,
+                realmId = s.realmId,
                 allianceId = s.allianceId,
                 allianceTag = s.alliances?.tag.orEmpty(),
                 allianceName = s.alliances?.name.orEmpty(),
@@ -157,8 +160,12 @@ class StrongholdRepository {
             GameSignals.poke()
         }
 
-    suspend fun foundStronghold(x: Long, y: Long) =
-        call("found_stronghold", buildJsonObject { put("p_x", x); put("p_y", y) })
+    suspend fun foundStronghold(x: Long, y: Long, realmId: String?) =
+        call("found_stronghold", buildJsonObject {
+            put("p_x", x)
+            put("p_y", y)
+            if (!realmId.isNullOrBlank()) put("p_realm", realmId)
+        })
 
     suspend fun withdrawGarrison(stronghold: Stronghold) =
         call("withdraw_garrison", buildJsonObject { put("p_stronghold", stronghold.id) })

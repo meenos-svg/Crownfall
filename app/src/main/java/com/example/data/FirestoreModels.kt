@@ -48,6 +48,7 @@ data class PlayerEmpire(
     val allianceRole: String = "NONE",
     val honor: Long = 0L,
     val shieldUntilEpochMs: Long = 0L,
+    val homeRealmId: String = "",
     @ServerTimestamp val createdAt: Timestamp? = null,
     @ServerTimestamp val updatedAt: Timestamp? = null
 ) {

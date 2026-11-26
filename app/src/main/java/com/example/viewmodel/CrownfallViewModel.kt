@@ -23,6 +23,9 @@ import com.example.data.WorldMarch
 import com.example.data.Stronghold
 import com.example.data.StrongholdRepository
 import com.example.data.AlliancePact
+import com.example.data.ExpeditionRepository
+import com.example.data.Realm
+import com.example.data.VisitorCamp
 import com.example.data.MarchStillMarching
 import com.example.data.WorldWarRepository
 import com.example.data.formatCompact
@@ -50,7 +53,8 @@ class CrownfallViewModel(
     private val allianceRepository: AllianceRepository,
     val currentUserId: String,
     initialDisplayName: String?,
-    private val strongholdRepository: StrongholdRepository = StrongholdRepository()
+    private val strongholdRepository: StrongholdRepository = StrongholdRepository(),
+    private val expeditionRepository: ExpeditionRepository = ExpeditionRepository()
 ) : ViewModel() {
 
     private val _nowEpochMs = MutableStateFlow(System.currentTimeMillis())
@@ -157,6 +161,79 @@ class CrownfallViewModel(
                 }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
+
+    // ------------------------------------------------------------------ realms & expeditions
+
+    val realms: StateFlow<List<Realm>> = expeditionRepository.observeRealms()
+        .catch { error ->
+            Log.w(TAG, "Error observing realms", error)
+            emit(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
+
+    val camps: StateFlow<List<VisitorCamp>> = expeditionRepository.observeCamps()
+        .catch { error ->
+            Log.w(TAG, "Error observing camps", error)
+            emit(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
+
+    val myCamp: StateFlow<VisitorCamp?> = camps
+        .map { list -> list.firstOrNull { it.ownerUid == currentUserId } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), null)
+
+    /** The realm the map is showing; null means your home realm. */
+    private val _viewedRealmId = MutableStateFlow<String?>(null)
+    val viewedRealmId: StateFlow<String?> = _viewedRealmId.asStateFlow()
+
+    fun selectRealm(realmId: String) {
+        val home = (empireState.value as? UiState.Success)?.data?.homeRealmId
+        val target = realmId.takeIf { it != home }
+        _viewedRealmId.value = target
+        empireRepository.setViewedRealm(target)
+    }
+
+    private fun isVisiting(): Boolean {
+        val home = (empireState.value as? UiState.Success)?.data?.homeRealmId ?: return false
+        val viewed = _viewedRealmId.value ?: return false
+        return viewed != home
+    }
+
+    /**
+     * What the map works with: at home, your empire; abroad, your camp's troops and position
+     * (no troops if you have no camp there yet).
+     */
+    val mapEmpire: StateFlow<PlayerEmpire?> = combine(empireState, _viewedRealmId, myCamp) { state, viewed, camp ->
+        val emp = (state as? UiState.Success)?.data ?: return@combine null
+        if (viewed == null || viewed == emp.homeRealmId) return@combine emp
+        val here = camp?.takeIf { it.realmId == viewed }
+        val ready = here?.status == "CAMPED"
+        emp.copy(
+            infantry = if (ready) here!!.infantry else 0L,
+            cavalry = if (ready) here!!.cavalry else 0L,
+            archers = if (ready) here!!.archers else 0L,
+            siege = if (ready) here!!.siege else 0L,
+            coordX = here?.coordX ?: 50L,
+            coordY = here?.coordY ?: 50L
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), null)
+
+    fun sendExpedition(x: Long, y: Long, infantry: Long, cavalry: Long, archers: Long, siege: Long) {
+        val realm = _viewedRealmId.value ?: return
+        runAction {
+            expeditionRepository.sendExpedition(realm, x, y, infantry, cavalry, archers, siege)
+                .onSuccess { postMessage("Expedition marching through the Waygate!") }
+                .onFailure { postMessage(it.localizedMessage ?: "Could not send the expedition.") }
+        }
+    }
+
+    fun recallCamp() {
+        runAction {
+            expeditionRepository.recallCamp()
+                .onSuccess { postMessage("Camp packed up. Your troops are heading home.") }
+                .onFailure { postMessage(it.localizedMessage ?: "Could not recall the camp.") }
+        }
+    }
 
     val strongholds: StateFlow<List<Stronghold>> = strongholdRepository.observeStrongholds()
         .catch { error ->
@@ -369,7 +446,8 @@ class CrownfallViewModel(
                 infantrySent = infantry,
                 cavalrySent = cavalry,
                 archersSent = archers,
-                siegeSent = siege
+                siegeSent = siege,
+                fromCamp = isVisiting()
             ).onSuccess {
                 postMessage("Army marching on $targetName ($toX, $toY)!")
             }.onFailure {
@@ -459,6 +537,10 @@ class CrownfallViewModel(
         val alliance = currentAlliance.value
         if (alliance == null) {
             postMessage("Join or found an Alliance to launch War Rallies!")
+            return
+        }
+        if (isVisiting()) {
+            postMessage("War Rallies are sounded from your home realm. Raid from your camp instead.")
             return
         }
         runAction {
@@ -592,7 +674,7 @@ class CrownfallViewModel(
 
     fun foundStronghold(x: Long, y: Long) {
         runAction {
-            strongholdRepository.foundStronghold(x, y)
+            strongholdRepository.foundStronghold(x, y, _viewedRealmId.value.takeIf { isVisiting() })
                 .onSuccess { postMessage("Stronghold raised at ($x, $y)! Send troops to garrison it.") }
                 .onFailure { postMessage(it.localizedMessage ?: "Could not found the stronghold.") }
         }

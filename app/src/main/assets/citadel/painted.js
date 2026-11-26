@@ -21,7 +21,8 @@
     ALLIANCE_HALL: { label: "Alliance Hall", x: 640, y: 1010, sprites: ["hall_1.webp", "hall_2.webp", "hall_3.webp", "hall_4.webp"], w: [190, 220, 235, 250] },
     BARRACKS: { label: "War Barracks", x: 1395, y: 1085, sprites: ["barracks_1.webp", "barracks_2.webp", "barracks_3.webp", "barracks_4.webp"], w: [210, 245, 265, 285] },
     ARCHERY: { label: "Ashbow Range", x: 730, y: 1255, sprites: ["archery_1.webp", "archery_2.webp", "archery_3.webp", "archery_4.webp"], w: [180, 230, 240, 250] },
-    SIEGE: { label: "Siege Foundry", x: 880, y: 1440, sprites: ["siege_1.webp", "siege_2.webp", "siege_3.webp", "siege_4.webp"], w: [165, 195, 220, 220] },
+    SIEGE: { label: "Siege Foundry", x: 880, y: 1440, sprites: ["siege_1.webp", "siege_2.webp", "siege_3.webp", "siege_4.webp"], w: [165, 195, 220, 220],
+      smoke: [[[0.48, 0.03]], [[0.52, 0.02]], [[0.59, 0.03], [0.61, 0.15], [0.74, 0.15]], [[0.59, 0.03], [0.61, 0.15], [0.74, 0.15]]] },
     STABLES: { label: "Dread Stables", x: 1150, y: 1330, sprites: ["stables_1.webp", "stables_2.webp", "stables_3.webp", "stables_4.webp"], w: [250, 250, 265, 275] },
     FARM: { label: "Farmstead", x: 1800, y: 1390, sprites: ["farm_1.webp", "farm_2.webp", "farm_3.webp", "farm_4.webp"], w: [300, 300, 300, 300], resource: "FOOD" },
     LUMBER: { label: "Timber Mill", x: 840, y: 1800, sprites: ["lumber_1.webp", "lumber_2.webp", "lumber_3.webp", "lumber_4.webp"], w: [200, 240, 260, 280], resource: "TIMBER" },
@@ -142,6 +143,15 @@
       n.sprite.style.top = (b.y - h) + "px";
       n.sprite.style.width = w + "px";
       n.peakY = b.y - h;
+      (n.smokeEls || []).forEach(function (el) { if (el.parentNode) el.parentNode.removeChild(el); });
+      n.smokeEls = [];
+      var sm = b.smoke && b.smoke[idx];
+      if (sm) sm.forEach(function (f, si) {
+        for (var k = 0; k < 3; k++) {
+          n.smokeEls.push(fx("smoke chimney", b.x - w / 2 + f[0] * w - 12, b.y - h + f[1] * h - 14,
+            { "animation-delay": (-(k * 2.3 + si * 0.8)) + "s" }));
+        }
+      });
       if (n.bubbleAnchor) n.bubbleAnchor.style.top = (b.y - h + 10) + "px";
     };
     n.img.src = ASSET + b.sprites[idx];
@@ -193,6 +203,10 @@
     for (var s2 = 0; s2 < 4; s2++) {
       fx("smoke", v[0] - 17, v[1] - 13, { "animation-delay": (-(s2 * 1.75 + vi * 0.9)) + "s" });
     }
+  });
+  // a few village hearths
+  [[330, 1380], [1180, 1600], [1700, 1050], [560, 1640]].forEach(function (v, vi) {
+    for (var k = 0; k < 3; k++) fx("smoke chimney", v[0] - 12, v[1] - 14, { "animation-delay": (-(k * 2.3 + vi)) + "s" });
   });
   // drifting cloud wisps around the sky palace
   [[620, 300, 260, 80], [860, 380, 220, 70], [700, 160, 200, 60]].forEach(function (c, i) {

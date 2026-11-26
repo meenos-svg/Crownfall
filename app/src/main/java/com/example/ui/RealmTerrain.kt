@@ -27,7 +27,7 @@ object RealmTerrainGenerator {
 
     private const val WATER_LEVEL = 0.34f
 
-    fun generate(realmId: String, resolution: Int = 320): RealmTerrain {
+    fun generate(realmId: String, resolution: Int = 512): RealmTerrain {
         val seed = realmId.hashCode()
         val r = resolution
         val elevation = FloatArray(r * r)
@@ -81,8 +81,8 @@ object RealmTerrainGenerator {
                 val m = moistureAt(jx, jy, seed)
                 val roll = hash(cellX, cellY, seed + 93)
                 when {
-                    e > 0.76f && roll < 0.45f -> peaks += Offset(jx, jy)
-                    e > WATER_LEVEL + 0.03f && e < 0.64f && m > 0.56f && roll < 0.6f -> trees += Offset(jx, jy)
+                    e > 0.78f && roll < 0.22f -> peaks += Offset(jx, jy)
+                    e > WATER_LEVEL + 0.03f && e < 0.64f && m > 0.56f && roll < 0.45f -> trees += Offset(jx, jy)
                 }
                 gx += step
                 cellX++

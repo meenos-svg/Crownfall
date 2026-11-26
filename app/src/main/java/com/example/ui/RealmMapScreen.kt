@@ -61,6 +61,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -159,6 +160,7 @@ fun RealmMapScreen(
     var zoomScale by remember { mutableFloatStateOf(1.15f) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
     var selectedTarget by remember { mutableStateOf<MapTarget?>(null) }
+    val textMeasurer = rememberTextMeasurer()
 
     val allTargets = remember(kingdoms) {
         kingdoms.map { MapTarget.PlayerCastle(it) } +
@@ -362,18 +364,19 @@ fun RealmMapScreen(
                 drawCircle(color = lineColor, radius = 7f, center = currentPos)
             }
 
-            // Draw NPC Resource Nodes & Shadow Bastions
+            // Map markers scale with zoom but stay readable
+            val unitPxMarkers = minOf(canvasSize.width, canvasSize.height) * zoomScale / 60f
+            val markerS = (unitPxMarkers * 0.95f).coerceIn(9f, 30f)
+            val showLabels = unitPxMarkers >= 11f
+
+            // NPC resource sites & Shadow Bastions
             GameCatalog.worldNpcNodes.forEach { node ->
                 val pos = worldToScreen(node.coordX, node.coordY, canvasSize)
                 if (node.targetType == "BASTION") {
-                    drawCircle(color = WarCrimson.copy(alpha = 0.25f), radius = 26f, center = pos)
-                    drawCircle(color = WarCrimson, radius = 14f, center = pos)
-                    drawCircle(
-                        color = CrownGold,
-                        radius = 14f,
-                        center = pos,
-                        style = Stroke(width = 2.5f)
-                    )
+                    drawBastion(pos, markerS * 0.9f)
+                    if (showLabels) {
+                        drawMapLabel(textMeasurer, node.name, Offset(pos.x, pos.y + markerS * 0.75f), EmberCrimson)
+                    }
                 } else {
                     val resColor = when (node.resourceType) {
                         ResourceType.FOOD -> FoodAmber
@@ -382,37 +385,41 @@ fun RealmMapScreen(
                         ResourceType.GOLD -> GoldCoin
                         null -> ArcaneEmerald
                     }
-                    drawCircle(color = resColor.copy(alpha = 0.22f), radius = 20f, center = pos)
-                    drawCircle(color = resColor, radius = 10f, center = pos)
+                    drawResourceSite(pos, markerS * 0.62f, node.resourceType, resColor)
                 }
             }
 
-            // Draw Live Player Strongholds
-            kingdoms.forEach { k ->
+            // Player castles (yours on top)
+            kingdoms.sortedBy { it.ownerUid == empire.userId }.forEach { k ->
                 val pos = worldToScreen(k.coordX, k.coordY, canvasSize)
                 val isMine = k.ownerUid == empire.userId
                 val isAlly = !empire.allianceId.isBlank() && k.allianceId == empire.allianceId
-                val fillColor = when {
+                val wall = when {
                     isMine -> CrownGold
                     isAlly -> RoyalAzure
                     else -> EmberCrimson
                 }
-                if (k.shieldUntilEpochMs > nowEpochMs) {
-                    drawCircle(
-                        color = ArcaneEmerald.copy(alpha = 0.38f),
-                        radius = 28f,
-                        center = pos,
-                        style = Stroke(width = 2.5f)
+                val banner = when {
+                    isMine -> ParchmentIvory
+                    isAlly -> ParchmentIvory
+                    else -> ObsidianVoid
+                }
+                val castleS = if (isMine) markerS * 1.2f else markerS
+                drawCastle(
+                    c = pos,
+                    s = castleS,
+                    wallColor = wall,
+                    bannerColor = banner,
+                    shielded = k.shieldUntilEpochMs > nowEpochMs
+                )
+                if (showLabels || isMine) {
+                    drawMapLabel(
+                        textMeasurer,
+                        k.lordName.ifBlank { "Lord" },
+                        Offset(pos.x, pos.y + castleS * 0.8f),
+                        if (isMine) GildedHighlight else ParchmentIvory
                     )
                 }
-                drawCircle(color = fillColor.copy(alpha = 0.24f), radius = 24f, center = pos)
-                drawCircle(color = fillColor, radius = if (isMine) 15f else 13f, center = pos)
-                drawCircle(
-                    color = ParchmentIvory,
-                    radius = if (isMine) 15f else 13f,
-                    center = pos,
-                    style = Stroke(width = 2f)
-                )
             }
         }
 

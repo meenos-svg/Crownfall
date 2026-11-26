@@ -77,3 +77,11 @@ Most need a second Google account (a friend or a second phone).
 - [ ] Withdraw my troops pays your share and brings them home
 - [ ] A rival alliance attacks it: if they win it changes hands and the old garrison goes home
 - [ ] Capture a landmark in another realm from your camp
+
+## AI lords (SQL part 12)
+- [ ] Six AI lords per realm appear on the map with "(AI)" after their name
+- [ ] Their marches move around the map (gathering, bastions, landmarks)
+- [ ] Each realm's bot alliance ([IRON], [MIST], [ASH]) holds a couple of landmarks; you can take them
+- [ ] Raid a weak AI lord (Keep 2-3): loot and a battle report
+- [ ] After you raid a bot, it may strike back within a day
+- [ ] AI lords never attack you while your Peace Shield is up

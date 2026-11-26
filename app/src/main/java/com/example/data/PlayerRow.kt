@@ -45,7 +45,8 @@ data class PlayerRow(
     val honor: Long = 0,
     @SerialName("shield_until") val shieldUntil: String? = null,
     @SerialName("alliance_id") val allianceId: String? = null,
-    @SerialName("alliance_role") val allianceRole: String = "NONE"
+    @SerialName("alliance_role") val allianceRole: String = "NONE",
+    @SerialName("is_bot") val isBot: Boolean = false
 )
 
 fun String?.toEpochMs(): Long =
@@ -108,5 +109,6 @@ fun PlayerRow.toKingdom(): RealmKingdom = RealmKingdom(
     coordY = (posY / SERVER_MAP_SCALE).toLong(),
     allianceId = allianceId.orEmpty(),
     allianceTag = "",
-    shieldUntilEpochMs = shieldUntil.toEpochMs()
+    shieldUntilEpochMs = shieldUntil.toEpochMs(),
+    isBot = isBot
 )

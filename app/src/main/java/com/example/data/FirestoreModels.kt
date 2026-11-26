@@ -144,6 +144,7 @@ data class RealmKingdom(
     val allianceId: String = "",
     val allianceTag: String = "",
     val shieldUntilEpochMs: Long = 0L,
+    val isBot: Boolean = false,
     @ServerTimestamp val createdAt: Timestamp? = null,
     @ServerTimestamp val updatedAt: Timestamp? = null
 ) {

@@ -589,7 +589,7 @@ fun RealmMapScreen(
                 if (showLabels || isMine) {
                     drawMapLabel(
                         textMeasurer,
-                        k.lordName.ifBlank { "Lord" },
+                        k.lordName.ifBlank { "Lord" } + if (k.isBot) " (AI)" else "",
                         Offset(pos.x, pos.y + castleS * 0.8f),
                         if (isMine) GildedHighlight else ParchmentIvory
                     )
@@ -947,8 +947,9 @@ fun RealmMapScreen(
                     )
                 } else if (target is MapTarget.PlayerCastle) {
                     val tagText = if (target.kingdom.allianceTag.isNotBlank()) "[${target.kingdom.allianceTag}] " else ""
+                    val aiText = if (target.kingdom.isBot) "AI Lord • " else ""
                     Text(
-                        text = "${tagText}Keep Lv.${target.kingdom.keepLevel} • Total Power ${formatCompact(target.kingdom.power)}" +
+                        text = "${aiText}${tagText}Keep Lv.${target.kingdom.keepLevel} • Total Power ${formatCompact(target.kingdom.power)}" +
                             if (isShielded) " • Protected by Peace Shield" else "",
                         style = MaterialTheme.typography.bodyMedium,
                         color = if (isShielded) ArcaneEmerald else WeatheredAsh

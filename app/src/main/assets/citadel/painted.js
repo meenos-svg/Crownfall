@@ -18,7 +18,7 @@
   // building (bottom-centre of its picture); `w` is the picture width per stage.
   var BUILDINGS = {
     KEEP: { label: "Obsidian Keep", x: 1030, y: 790, sprites: ["keep_1.webp", "keep_2.webp", "keep_3.webp", "keep_4.webp"], w: [360, 400, 420, 440], flames: [[0.33, 0.25], [0.62, 0.25], [0.45, 0.33]] },
-    ALLIANCE_HALL: { label: "Alliance Hall", x: 460, y: 1060, r: 90 },
+    ALLIANCE_HALL: { label: "Alliance Hall", x: 640, y: 1010, sprites: ["hall_1.webp", "hall_2.webp", "hall_3.webp", "hall_4.webp"], w: [190, 220, 235, 250] },
     BARRACKS: { label: "War Barracks", x: 1395, y: 1085, sprites: ["barracks_1.webp", "barracks_2.webp", "barracks_3.webp", "barracks_4.webp"], w: [210, 245, 265, 285] },
     ARCHERY: { label: "Ashbow Range", x: 660, y: 1290, r: 80 },
     SIEGE: { label: "Siege Foundry", x: 960, y: 1450, r: 80 },

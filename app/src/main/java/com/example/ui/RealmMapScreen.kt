@@ -322,15 +322,19 @@ fun RealmMapScreen(
                             else if (canFound) foundSpot = spot
                         }
                     ) { tap ->
-                        val hit = allTargets.minByOrNull { target ->
+                        // Painted sprites stand up from their base point, so aim taps at the middle of the art.
+                        fun tapDistance(target: MapTarget): Double {
                             val pos = worldToScreen(target.coordX, target.coordY, canvasSize)
-                            hypot((pos.x - tap.x).toDouble(), (pos.y - tap.y).toDouble())
-                        }
-                        if (hit != null) {
-                            val pos = worldToScreen(hit.coordX, hit.coordY, canvasSize)
-                            if (hypot((pos.x - tap.x).toDouble(), (pos.y - tap.y).toDouble()) <= 68.0) {
-                                selectedTarget = hit
+                            val lift = when (target) {
+                                is MapTarget.PlayerCastle -> 26f * density
+                                is MapTarget.StrongholdSite -> 22f * density
+                                else -> 10f * density
                             }
+                            return hypot((pos.x - tap.x).toDouble(), (pos.y - lift - tap.y).toDouble())
+                        }
+                        val hit = allTargets.minByOrNull { tapDistance(it) }
+                        if (hit != null && tapDistance(hit) <= 46.0 * density) {
+                            selectedTarget = hit
                         }
                     }
                 }
@@ -619,7 +623,7 @@ fun RealmMapScreen(
             }
 
             // Player castles (yours on top)
-            kingdoms.sortedBy { it.ownerUid == empire.userId }.forEach { k ->
+            kingdoms.sortedWith(compareBy({ it.ownerUid == empire.userId }, { it.coordY })).forEach { k ->
                 val pos = worldToScreen(k.coordX, k.coordY, canvasSize)
                 val isMine = k.ownerUid == empire.userId
                 val isAlly = !empire.allianceId.isBlank() && k.allianceId == empire.allianceId
@@ -641,11 +645,23 @@ fun RealmMapScreen(
                 }
                 val castleSprite = sprites[tier]
                 val shielded = k.shieldUntilEpochMs > nowEpochMs
+                var plateY = pos.y + castleS * 0.8f
                 if (castleSprite != null) {
-                    val w = castleS * when (tier) { "castle3" -> 4.8f; "castle2" -> 4.4f; else -> 4.0f }
+                    // Castles are the most important thing on the map: big, with a minimum on-screen size.
+                    val tierScale = when (tier) { "castle3" -> 1.25f; "castle2" -> 1.12f; else -> 1.0f }
+                    val w = (castleS * 6.2f).coerceAtLeast((if (isMine) 72f else 60f) * density) * tierScale
+                    val h = w * castleSprite.height / castleSprite.width
+                    val center = Offset(pos.x, pos.y - h * 0.18f)
+                    if (isMine) {
+                        drawCircle(CrownGold.copy(alpha = 0.22f), radius = w * 0.62f, center = center)
+                        drawCircle(CrownGold.copy(alpha = 0.85f), radius = w * 0.62f, center = center, style = Stroke(width = 2.5f * density))
+                    } else if (isAlly) {
+                        drawCircle(RoyalAzure.copy(alpha = 0.6f), radius = w * 0.58f, center = center, style = Stroke(width = 1.5f * density))
+                    }
                     val box = drawMapSprite(castleSprite, pos, w)
-                    drawPennant(Offset(box.center.x + w * 0.06f, box.top + box.height * 0.2f), castleS * 0.7f, wall)
-                    if (shielded) drawShieldDome(Offset(pos.x, pos.y - box.height * 0.2f), w * 0.58f)
+                    drawPennant(Offset(box.center.x + w * 0.06f, box.top + box.height * 0.18f), (w * 0.17f).coerceAtLeast(10f * density), wall)
+                    if (shielded) drawShieldDome(center, w * 0.6f)
+                    plateY = box.bottom - box.height * 0.04f
                 } else {
                     drawCastle(
                         c = pos,
@@ -655,12 +671,14 @@ fun RealmMapScreen(
                         shielded = shielded
                     )
                 }
-                if (showLabels || isMine) {
-                    drawMapLabel(
+                if (showLabels || isMine || isAlly) {
+                    drawCastlePlate(
                         textMeasurer,
                         k.lordName.ifBlank { "Lord" } + if (k.isBot) " (AI)" else "",
-                        Offset(pos.x, pos.y + castleS * (if (sprites.isEmpty()) 0.8f else 1.25f)),
-                        if (isMine) GildedHighlight else ParchmentIvory
+                        k.keepLevel,
+                        wall,
+                        Offset(pos.x, plateY),
+                        emphasize = isMine
                     )
                 }
             }

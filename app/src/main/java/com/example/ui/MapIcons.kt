@@ -1,5 +1,7 @@
 package com.example.ui
 
+import androidx.compose.ui.unit.dp
+
 import kotlin.math.roundToInt
 
 import androidx.compose.ui.unit.IntSize
@@ -494,3 +496,42 @@ fun DrawScope.drawMapLabel(
     )
     drawText(layout, topLeft = Offset(anchor.x - w / 2, anchor.y + padY))
 }
+
+/**
+ * A castle nameplate: a dark pill with a coloured edge (gold you, blue alliance, red others),
+ * the lord's name and a Keep-level badge, centred under [anchor].
+ */
+fun DrawScope.drawCastlePlate(
+    measurer: TextMeasurer,
+    name: String,
+    keepLevel: Long,
+    accent: Color,
+    anchor: Offset,
+    emphasize: Boolean
+) {
+    val nameLayout = measurer.measure(
+        AnnotatedString(name),
+        style = TextStyle(color = Color(0xFFF3E9D2), fontSize = if (emphasize) 12.sp else 11.sp, fontWeight = FontWeight.Bold)
+    )
+    val lvLayout = measurer.measure(
+        AnnotatedString("Lv$keepLevel"),
+        style = TextStyle(color = Color(0xFF14110C), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
+    )
+    val padX = 7.dp.toPx()
+    val padY = 3.dp.toPx()
+    val gap = 5.dp.toPx()
+    val badgeW = lvLayout.size.width + 8.dp.toPx()
+    val h = nameLayout.size.height + padY * 2
+    val totalW = padX + badgeW + gap + nameLayout.size.width + padX
+    val left = anchor.x - totalW / 2
+    val top = anchor.y
+    drawRoundRect(Color(0xE60B0B0F), Offset(left, top), Size(totalW, h), CornerRadius(h / 2, h / 2))
+    drawRoundRect(accent, Offset(left, top), Size(totalW, h), CornerRadius(h / 2, h / 2),
+        style = Stroke(width = (if (emphasize) 2.dp else 1.5.dp).toPx()))
+    val badgeH = lvLayout.size.height + 2.dp.toPx()
+    val badgeTop = top + (h - badgeH) / 2
+    drawRoundRect(accent, Offset(left + padX, badgeTop), Size(badgeW, badgeH), CornerRadius(badgeH / 2, badgeH / 2))
+    drawText(lvLayout, topLeft = Offset(left + padX + (badgeW - lvLayout.size.width) / 2, badgeTop + 1.dp.toPx()))
+    drawText(nameLayout, topLeft = Offset(left + padX + badgeW + gap, top + padY))
+}
+

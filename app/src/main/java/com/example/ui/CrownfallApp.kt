@@ -150,6 +150,26 @@ fun CrownfallMainShell(
 
     val empire = (empireState as? UiState.Success)?.data
     var showAvatarPicker by remember { mutableStateOf(false) }
+    var profileUid by remember { mutableStateOf<String?>(null) }
+    profileUid?.let { uid ->
+        val myRole = currentAlliance?.roleOf(viewModel.currentUserId) ?: "NONE"
+        LordProfileSheet(
+            playerId = uid,
+            isMe = uid == viewModel.currentUserId,
+            myAllianceId = empire?.allianceId.orEmpty(),
+            reloadKey = "${empire?.lordName}|${empire?.avatar}|${empire?.power}",
+            loadProfile = viewModel::loadProfile,
+            canInvite = myRole == "LEADER" || myRole == "OFFICER",
+            onInvite = {
+                kingdoms.firstOrNull { it.ownerUid == uid }?.let { viewModel.inviteLord(it) }
+                profileUid = null
+            },
+            onChangeAvatar = { showAvatarPicker = true },
+            onRename = viewModel::renameLord,
+            onSetMotto = viewModel::setMotto,
+            onDismiss = { profileUid = null }
+        )
+    }
     if (showAvatarPicker) {
         AvatarPickerDialog(
             current = empire?.avatar ?: "crest:1",
@@ -175,7 +195,7 @@ fun CrownfallMainShell(
                     alliance = currentAlliance,
                     nowEpochMs = nowEpochMs,
                     perResourceLastHarvestMs = perResourceLastHarvestMs,
-                    onAvatarClick = { showAvatarPicker = true }
+                    onAvatarClick = { profileUid = viewModel.currentUserId }
                 )
             },
             bottomBar = {
@@ -349,7 +369,8 @@ fun CrownfallMainShell(
                                         landmarks = landmarks,
                                         onAttackLandmark = viewModel::attackLandmark,
                                         onReinforceLandmark = viewModel::reinforceLandmark,
-                                        onWithdrawLandmark = viewModel::withdrawLandmarkGarrison
+                                        onWithdrawLandmark = viewModel::withdrawLandmarkGarrison,
+                                        onViewProfile = { profileUid = it }
                                     )
 
                                     2 -> AllianceScreen(
@@ -383,7 +404,8 @@ fun CrownfallMainShell(
                                         },
                                         onProposePact = viewModel::proposePact,
                                         onRespondPact = viewModel::respondPact,
-                                        onEndPact = viewModel::endPact
+                                        onEndPact = viewModel::endPact,
+                                        onViewProfile = { profileUid = it }
                                     )
 
                                     else -> WarRoomScreen(

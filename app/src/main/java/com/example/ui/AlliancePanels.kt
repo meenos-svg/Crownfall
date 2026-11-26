@@ -1,5 +1,7 @@
 package com.example.ui
 
+import androidx.compose.foundation.clickable
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -491,7 +493,8 @@ fun AllianceRosterPanel(
     onToggleOfficer: (String) -> Unit,
     onTransferLeadership: (String) -> Unit,
     onKickMember: (String, Long) -> Unit,
-    onLeaveOrDisband: () -> Unit
+    onLeaveOrDisband: () -> Unit,
+    onViewProfile: (String) -> Unit = {}
 ) {
     var showInviteDialog by remember { mutableStateOf(false) }
     val myRole = alliance.roleOf(empire.userId)
@@ -543,10 +546,19 @@ fun AllianceRosterPanel(
             val role = alliance.roleOf(member.ownerUid)
             ObsidianCard(highlightBorder = if (role == "LEADER") CrownGold else EtchedSteel) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onViewProfile(member.ownerUid) },
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    LordAvatar(
+                        avatar = member.avatar,
+                        avatarUrl = member.avatarUrl,
+                        size = 42.dp,
+                        ringColor = if (role == "LEADER") CrownGold else EtchedSteel
+                    )
+                    Spacer(Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             RoleRankTag(role)

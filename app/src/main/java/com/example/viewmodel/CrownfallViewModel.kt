@@ -24,6 +24,8 @@ import com.example.data.Stronghold
 import com.example.data.StrongholdRepository
 import com.example.data.AlliancePact
 import com.example.data.ExpeditionRepository
+import com.example.data.LordProfile
+import com.example.data.ProfileRepository
 import com.example.data.Landmark
 import com.example.data.LandmarkRepository
 import com.example.data.Realm
@@ -57,7 +59,8 @@ class CrownfallViewModel(
     initialDisplayName: String?,
     private val strongholdRepository: StrongholdRepository = StrongholdRepository(),
     private val expeditionRepository: ExpeditionRepository = ExpeditionRepository(),
-    private val landmarkRepository: LandmarkRepository = LandmarkRepository()
+    private val landmarkRepository: LandmarkRepository = LandmarkRepository(),
+    private val profileRepository: ProfileRepository = ProfileRepository()
 ) : ViewModel() {
 
     private val _nowEpochMs = MutableStateFlow(System.currentTimeMillis())
@@ -690,6 +693,16 @@ class CrownfallViewModel(
             empireRepository.renameLord(newName)
                 .onSuccess { postMessage("Royal decree proclaimed: $newName") }
                 .onFailure { postMessage(it.localizedMessage ?: "Rename failed.") }
+        }
+    }
+
+    suspend fun loadProfile(playerId: String): Result<LordProfile> = profileRepository.fetch(playerId)
+
+    fun setMotto(motto: String) {
+        runAction {
+            empireRepository.setMotto(motto)
+                .onSuccess { postMessage("Your motto is carved above the gate.") }
+                .onFailure { postMessage(it.localizedMessage ?: "Could not change your motto.") }
         }
     }
 

@@ -1,5 +1,7 @@
 package com.example.ui
 
+import androidx.compose.foundation.clickable
+
 import androidx.compose.ui.graphics.ImageBitmap
 
 import androidx.compose.ui.platform.LocalContext
@@ -208,7 +210,8 @@ fun RealmMapScreen(
     landmarks: List<Landmark> = emptyList(),
     onAttackLandmark: (Landmark, Long, Long, Long, Long) -> Unit = { _, _, _, _, _ -> },
     onReinforceLandmark: (Landmark, Long, Long, Long, Long) -> Unit = { _, _, _, _, _ -> },
-    onWithdrawLandmark: (Landmark) -> Unit = {}
+    onWithdrawLandmark: (Landmark) -> Unit = {},
+    onViewProfile: (String) -> Unit = {}
 ) {
     val homeRealmId = homeEmpire.homeRealmId
     val shownRealmId = viewedRealmId.ifBlank { homeRealmId }
@@ -996,7 +999,8 @@ fun RealmMapScreen(
                                 isOwnCastle -> CrownGold
                                 isAllyCastle -> RoyalAzure
                                 else -> EmberCrimson
-                            }
+                            },
+                            modifier = Modifier.clickable { onViewProfile(target.kingdom.ownerUid) }
                         )
                         Spacer(Modifier.width(12.dp))
                     }
@@ -1006,6 +1010,14 @@ fun RealmMapScreen(
                             style = MaterialTheme.typography.headlineSmall,
                             color = ParchmentIvory
                         )
+                        if (target is MapTarget.PlayerCastle) {
+                            Text(
+                                text = "View profile ›",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = CrownGold,
+                                modifier = Modifier.clickable { onViewProfile(target.kingdom.ownerUid) }
+                            )
+                        }
                         Text(
                             text = "Coordinates (${target.coordX}, ${target.coordY}) • March ETA ${formatCountdown(travelMs)}",
                             style = MonoStatStyle,

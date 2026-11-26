@@ -108,7 +108,8 @@ fun AllianceScreen(
     ownStronghold: Stronghold? = null,
     onProposePact: (Alliance) -> Unit = {},
     onRespondPact: (AlliancePact, Boolean) -> Unit = { _, _ -> },
-    onEndPact: (AlliancePact) -> Unit = {}
+    onEndPact: (AlliancePact) -> Unit = {},
+    onViewProfile: (String) -> Unit = {}
 ) {
     if (currentAlliance == null) {
         AllianceDirectoryView(
@@ -222,7 +223,8 @@ fun AllianceScreen(
                     onToggleOfficer = onToggleOfficer,
                     onTransferLeadership = onTransferLeadership,
                     onKickMember = onKickMember,
-                    onLeaveOrDisband = onLeaveOrDisband
+                    onLeaveOrDisband = onLeaveOrDisband,
+                    onViewProfile = onViewProfile
                 )
                 4 -> AlliancePactsPanel(
                     empire = empire,

@@ -199,6 +199,11 @@ class EmpireRepository(
         Unit
     }
 
+    suspend fun setMotto(motto: String): Result<Unit> = supabaseResult {
+        act("set_motto", buildJsonObject { put("p_motto", motto) })
+        Unit
+    }
+
     suspend fun setAvatar(avatar: String): Result<Unit> = supabaseResult {
         act("set_avatar", buildJsonObject { put("p_avatar", avatar) })
         Unit

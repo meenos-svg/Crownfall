@@ -52,6 +52,13 @@ Most need a second Google account (a friend or a second phone).
 - [ ] The 10 painted portraits appear in the picker and look right in the top bar
 - [ ] Tap another castle on the map: their avatar shows in the sheet
 
+## Lord profiles (SQL part 16)
+- [ ] Tap your avatar → your profile: title, alliance, realm, motto, honor bar, war record
+- [ ] Edit motto, rename and change avatar from your profile
+- [ ] Tap another castle → View profile → their card (AI lords show their motto)
+- [ ] Alliance roster rows show avatars and open profiles
+- [ ] As leader/officer, Invite to alliance from an unaffiliated lord's profile
+
 ## Citadel
 - [ ] Chimney smoke and building colours look right on your phone
 

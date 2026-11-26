@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Crownfall Citadel</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #2b2418; touch-action: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    #viewport { position: fixed; inset: 0; overflow: hidden; }
+    #world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+    #bg { position: absolute; left: 0; top: 0; display: block; pointer-events: none; }
+    .sprite { position: absolute; pointer-events: auto; cursor: pointer; transition: filter 0.2s ease; }
+    .sprite img { display: block; width: 100%; height: auto; pointer-events: none;
+      animation: spriteIn 0.45s ease-out; }
+    .sprite.selected { filter: drop-shadow(0 0 6px rgba(242, 210, 114, 0.95)) drop-shadow(0 0 14px rgba(242, 210, 114, 0.5)); }
+    .sprite.upgrading img { animation: building 1.4s ease-in-out infinite; }
+    @keyframes spriteIn { from { opacity: 0; transform: translateY(8px) scale(0.96); } to { opacity: 1; transform: none; } }
+    @keyframes building { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.18) sepia(0.15); } }
+    .hit { position: absolute; border-radius: 50%; pointer-events: auto; cursor: pointer; }
+    .hit.selected { box-shadow: 0 0 0 2px rgba(242, 210, 114, 0.85), 0 0 18px rgba(242, 210, 114, 0.45) inset; }
+
+    .anchor { position: absolute; width: 0; height: 0; pointer-events: none; }
+    .scaled { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; }
+
+    .building-pill { position: absolute; left: 0; top: 0; transform: translate(-50%, 0); pointer-events: auto;
+      display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px;
+      background: rgba(14, 15, 22, 0.88); border: 1px solid rgba(212, 175, 55, 0.48);
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45); white-space: nowrap; cursor: pointer; }
+    .building-pill.selected { border-color: #f2d272; box-shadow: 0 0 12px rgba(242, 210, 114, 0.55); }
+    .building-pill.upgradeable { border-color: rgba(46, 158, 107, 0.92); }
+    .building-pill.upgrading { border-color: #d4af37; }
+    .pill-name { color: #f4efe6; font-size: 10px; font-weight: 600; letter-spacing: 0.2px; }
+    .pill-level { color: #f2d272; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .pill-up-arrow { display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px;
+      border-radius: 50%; background: rgba(46, 158, 107, 0.28); color: #4ce39c; font-size: 9px; font-weight: 900; line-height: 1; }
+    .pill-build-icon { color: #f2d272; font-size: 10px; font-weight: 700; }
+
+    .harvest-bubble { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); pointer-events: auto;
+      display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; border-radius: 999px;
+      background: linear-gradient(135deg, #b8871c 0%, #e5be4b 52%, #fae084 100%); border: 1.5px solid #fff3c2;
+      box-shadow: 0 4px 14px rgba(212, 175, 55, 0.65), 0 2px 4px rgba(0, 0, 0, 0.4); color: #1a1304;
+      font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer;
+      animation: bobFloat 1.9s ease-in-out infinite; }
+    .harvest-dot { width: 8px; height: 8px; border-radius: 50%; border: 1px solid rgba(20, 16, 5, 0.45); flex-shrink: 0; }
+    @keyframes bobFloat { 0%, 100% { margin-top: 0; } 50% { margin-top: -5px; } }
+    .harvest-popup { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); padding: 3px 9px; border-radius: 999px;
+      background: rgba(16, 17, 24, 0.9); border: 1px solid #f2d272; color: #fae084; font-size: 12px; font-weight: 800;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45); animation: floatUpFade 1.25s ease-out forwards; pointer-events: none; }
+    @keyframes floatUpFade { 0% { opacity: 0; margin-top: 4px; } 15% { opacity: 1; } 100% { opacity: 0; margin-top: -44px; } }
+
+    /* Ambient life */
+    #fx { position: absolute; left: 0; top: 0; pointer-events: none; }
+    .glow { position: absolute; border-radius: 50%; mix-blend-mode: screen; pointer-events: none;
+      background: radial-gradient(circle, rgba(255, 150, 40, 0.55) 0%, rgba(255, 90, 20, 0.22) 45%, rgba(255, 60, 0, 0) 70%);
+      animation: lavaPulse 3.2s ease-in-out infinite; }
+    @keyframes lavaPulse { 0%, 100% { opacity: 0.45; transform: scale(0.95); } 50% { opacity: 1; transform: scale(1.08); } }
+    .ember { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #ffc060;
+      box-shadow: 0 0 4px #ff8a20; animation: emberRise linear infinite; pointer-events: none; }
+    @keyframes emberRise { 0% { opacity: 0; transform: translate(0, 0); } 10% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx), -60px); } }
+    .smoke { position: absolute; width: 34px; height: 26px; border-radius: 50%; background: rgba(70, 64, 60, 0.55);
+      filter: blur(4px); animation: smokeRise 7s ease-out infinite; pointer-events: none; }
+    @keyframes smokeRise { 0% { opacity: 0; transform: translate(0, 0) scale(0.5); } 15% { opacity: 0.8; }
+      100% { opacity: 0; transform: translate(40px, -120px) scale(2.6); } }
+    .flame-glow { position: absolute; width: 16px; height: 16px; border-radius: 50%; mix-blend-mode: screen; pointer-events: none;
+      background: radial-gradient(circle, rgba(255, 210, 110, 0.9) 0%, rgba(255, 140, 40, 0) 70%);
+      animation: flicker 0.18s ease-in-out infinite alternate; }
+    @keyframes flicker { from { opacity: 0.55; transform: scale(0.9); } to { opacity: 1; transform: scale(1.15); } }
+    .wisp { position: absolute; border-radius: 50%; background: rgba(255, 255, 255, 0.35); filter: blur(10px);
+      animation: drift 22s ease-in-out infinite alternate; pointer-events: none; }
+    @keyframes drift { from { transform: translateX(-18px); } to { transform: translateX(22px); } }
+    .sparkle { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #ffffff;
+      box-shadow: 0 0 6px #bfe8ff; animation: twinkle 2.6s ease-in-out infinite; pointer-events: none; }
+    @keyframes twinkle { 0%, 100% { opacity: 0; transform: scale(0.4); } 50% { opacity: 0.9; transform: scale(1); } }
+    .bird { position: absolute; width: 14px; height: 6px; pointer-events: none; animation: fly linear infinite; }
+    .bird::before, .bird::after { content: ""; position: absolute; top: 0; width: 7px; height: 2px; background: #2a2018; border-radius: 2px; }
+    .bird::before { left: 0; transform: rotate(18deg); animation: flap 0.5s ease-in-out infinite alternate; transform-origin: right center; }
+    .bird::after { right: 0; transform: rotate(-18deg); animation: flapR 0.5s ease-in-out infinite alternate; transform-origin: left center; }
+    @keyframes flap { from { transform: rotate(25deg); } to { transform: rotate(-10deg); } }
+    @keyframes flapR { from { transform: rotate(-25deg); } to { transform: rotate(10deg); } }
+    @keyframes fly { from { transform: translate(0, 0); } to { transform: translate(1300px, -260px); } }
+
+    #loader { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #1a1610;
+      color: #f2d272; font-size: 13px; letter-spacing: 1px; transition: opacity 0.4s ease; z-index: 20; }
+  </style>
+</head>
+<body>
+  <div id="viewport">
+    <div id="world">
+      <img id="bg" alt="" src="https://citadel.crownfall.local/assets/painted/bg.jpg">
+      <div id="sprites"></div>
+      <div id="fx"></div>
+      <div id="labels"></div>
+    </div>
+  </div>
+  <div id="loader">Raising the Obsidian Dominion…</div>
+  <script src="https://citadel.crownfall.local/assets/painted.js"></script>
+</body>
+</html>

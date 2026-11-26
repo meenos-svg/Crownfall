@@ -87,18 +87,27 @@ import org.json.JSONObject
 import java.io.ByteArrayInputStream
 
 private const val DIORAMA_HOST = "citadel.crownfall.local"
-private const val DIORAMA_ENTRY_URL = "https://$DIORAMA_HOST/assets/index.html"
+// Painted citadel. The older 3D scene (index.html) is still bundled as a fallback.
+private const val DIORAMA_ENTRY_URL = "https://$DIORAMA_HOST/assets/painted.html"
 private const val BRIDGE_NAME = "CrownfallBridge"
 
-private val ALLOWED_LOCAL_ASSETS = mapOf(
-    "index.html" to "text/html",
-    "textures.js" to "application/javascript",
-    "world.js" to "application/javascript",
-    "buildings.js" to "application/javascript",
-    "ancient.js" to "application/javascript",
-    "three.min.js" to "application/javascript",
-    "app.js" to "application/javascript"
+/** Files under assets/citadel/ may be served by type; anything else is refused. */
+private val LOCAL_ASSET_TYPES = mapOf(
+    "html" to "text/html",
+    "js" to "application/javascript",
+    "css" to "text/css",
+    "png" to "image/png",
+    "jpg" to "image/jpeg",
+    "jpeg" to "image/jpeg",
+    "webp" to "image/webp",
+    "json" to "application/json"
 )
+
+private fun localAssetMime(fileName: String): String? {
+    if (fileName.isBlank() || fileName.contains("..") || fileName.startsWith("/")) return null
+    if (!fileName.matches(Regex("[A-Za-z0-9_./-]+"))) return null
+    return LOCAL_ASSET_TYPES[fileName.substringAfterLast('.', "").lowercase()]
+}
 
 private val ALLOWED_CDN_HOSTS = setOf(
     "cdn.jsdelivr.net",
@@ -154,7 +163,7 @@ private class SandboxedDioramaWebViewClient(
             val prefix = "/assets/"
             if (!path.startsWith(prefix)) return forbiddenResponse()
             val fileName = path.removePrefix(prefix)
-            val mime = ALLOWED_LOCAL_ASSETS[fileName] ?: return forbiddenResponse()
+            val mime = localAssetMime(fileName) ?: return forbiddenResponse()
             return try {
                 val stream = appContext.assets.open("citadel/$fileName")
                 WebResourceResponse(mime, "UTF-8", stream)

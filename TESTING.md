@@ -45,6 +45,12 @@ Most need a second Google account (a friend or a second phone).
 - [ ] Strongholds use the painted fortress with siege ring, aid beacon and wall bar still showing
 - [ ] Landmarks (mine, quarry, lumberyard, granary, shrine), resource sites and visitor camps are painted too
 
+## Avatars (SQL part 14)
+- [ ] Tap the circle at top-left → picker opens
+- [ ] Pick a crest: it shows in the top bar with the Keep level badge
+- [ ] Pick Google: your Google photo shows
+- [ ] Tap another castle on the map: their avatar shows in the sheet
+
 ## Citadel
 - [ ] Chimney smoke and building colours look right on your phone
 

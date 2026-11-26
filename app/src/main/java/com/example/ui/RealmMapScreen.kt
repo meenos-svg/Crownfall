@@ -987,6 +987,19 @@ fun RealmMapScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (target is MapTarget.PlayerCastle) {
+                        LordAvatar(
+                            avatar = target.kingdom.avatar,
+                            avatarUrl = target.kingdom.avatarUrl,
+                            size = 52.dp,
+                            ringColor = when {
+                                isOwnCastle -> CrownGold
+                                isAllyCastle -> RoyalAzure
+                                else -> EmberCrimson
+                            }
+                        )
+                        Spacer(Modifier.width(12.dp))
+                    }
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = target.name,

@@ -199,6 +199,11 @@ class EmpireRepository(
         Unit
     }
 
+    suspend fun setAvatar(avatar: String): Result<Unit> = supabaseResult {
+        act("set_avatar", buildJsonObject { put("p_avatar", avatar) })
+        Unit
+    }
+
     suspend fun activatePeaceShield(empire: PlayerEmpire): Result<Unit> = supabaseResult {
         act("activate_peace_shield")
         Unit

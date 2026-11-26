@@ -693,6 +693,14 @@ class CrownfallViewModel(
         }
     }
 
+    fun setAvatar(avatar: String) {
+        runAction {
+            empireRepository.setAvatar(avatar)
+                .onSuccess { postMessage("Your new likeness hangs in the great hall.") }
+                .onFailure { postMessage(it.localizedMessage ?: "Could not change your avatar.") }
+        }
+    }
+
     fun activatePeaceShield() {
         val emp = currentEmpireOrWarn() ?: return
         runAction {

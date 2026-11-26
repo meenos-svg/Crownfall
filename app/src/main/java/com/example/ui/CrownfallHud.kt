@@ -77,7 +77,8 @@ fun CrownfallTopResourceHud(
     alliance: Alliance?,
     nowEpochMs: Long,
     modifier: Modifier = Modifier,
-    perResourceLastHarvestMs: Map<ResourceType, Long> = emptyMap()
+    perResourceLastHarvestMs: Map<ResourceType, Long> = emptyMap(),
+    onAvatarClick: () -> Unit = {}
 ) {
     val pending = if (empire != null) {
         GameCatalog.accruedPendingResources(empire, alliance, nowEpochMs, perResourceLastHarvestMs)
@@ -111,21 +112,34 @@ fun CrownfallTopResourceHud(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
+                    // Avatar (tap to change) with the Keep level on a small badge
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
+                            .size(48.dp)
                             .clip(CircleShape)
-                            .background(
-                                Brush.linearGradient(listOf(WarCrimson, ObsidianVoid))
-                            )
-                            .border(1.5.dp, CrownGold, CircleShape),
-                        contentAlignment = Alignment.Center
+                            .clickable(onClick = onAvatarClick)
                     ) {
-                        Text(
-                            text = "${empire?.keepLevel ?: 1}",
-                            style = MonoStatStyle,
-                            color = GildedHighlight
+                        LordAvatar(
+                            avatar = empire?.avatar ?: "crest:1",
+                            avatarUrl = empire?.avatarUrl,
+                            size = 44.dp,
+                            modifier = Modifier.align(Alignment.TopStart)
                         )
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .size(20.dp)
+                                .clip(CircleShape)
+                                .background(Brush.linearGradient(listOf(WarCrimson, ObsidianVoid)))
+                                .border(1.dp, CrownGold, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "${empire?.keepLevel ?: 1}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = GildedHighlight
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Column {

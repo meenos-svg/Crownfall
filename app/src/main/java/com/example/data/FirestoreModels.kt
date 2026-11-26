@@ -49,6 +49,8 @@ data class PlayerEmpire(
     val honor: Long = 0L,
     val shieldUntilEpochMs: Long = 0L,
     val homeRealmId: String = "",
+    val avatar: String = "crest:1",
+    val avatarUrl: String = "",
     @ServerTimestamp val createdAt: Timestamp? = null,
     @ServerTimestamp val updatedAt: Timestamp? = null
 ) {
@@ -145,6 +147,8 @@ data class RealmKingdom(
     val allianceTag: String = "",
     val shieldUntilEpochMs: Long = 0L,
     val isBot: Boolean = false,
+    val avatar: String = "crest:1",
+    val avatarUrl: String = "",
     @ServerTimestamp val createdAt: Timestamp? = null,
     @ServerTimestamp val updatedAt: Timestamp? = null
 ) {

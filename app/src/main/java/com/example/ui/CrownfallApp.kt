@@ -40,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -148,6 +149,14 @@ fun CrownfallMainShell(
     }
 
     val empire = (empireState as? UiState.Success)?.data
+    var showAvatarPicker by remember { mutableStateOf(false) }
+    if (showAvatarPicker) {
+        AvatarPickerDialog(
+            current = empire?.avatar ?: "crest:1",
+            onPick = { viewModel.setAvatar(it); showAvatarPicker = false },
+            onDismiss = { showAvatarPicker = false }
+        )
+    }
 
     BoxWithConstraints(
         modifier = Modifier
@@ -165,7 +174,8 @@ fun CrownfallMainShell(
                     empire = empire,
                     alliance = currentAlliance,
                     nowEpochMs = nowEpochMs,
-                    perResourceLastHarvestMs = perResourceLastHarvestMs
+                    perResourceLastHarvestMs = perResourceLastHarvestMs,
+                    onAvatarClick = { showAvatarPicker = true }
                 )
             },
             bottomBar = {

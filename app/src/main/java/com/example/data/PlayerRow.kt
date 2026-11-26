@@ -46,7 +46,9 @@ data class PlayerRow(
     @SerialName("shield_until") val shieldUntil: String? = null,
     @SerialName("alliance_id") val allianceId: String? = null,
     @SerialName("alliance_role") val allianceRole: String = "NONE",
-    @SerialName("is_bot") val isBot: Boolean = false
+    @SerialName("is_bot") val isBot: Boolean = false,
+    val avatar: String = "crest:1",
+    @SerialName("avatar_url") val avatarUrl: String? = null
 )
 
 fun String?.toEpochMs(): Long =
@@ -90,7 +92,9 @@ fun PlayerRow.toEmpire(): PlayerEmpire = PlayerEmpire(
     allianceRole = allianceRole,
     honor = honor,
     shieldUntilEpochMs = shieldUntil.toEpochMs(),
-    homeRealmId = homeRealmId
+    homeRealmId = homeRealmId,
+    avatar = avatar,
+    avatarUrl = avatarUrl.orEmpty()
 )
 
 fun PlayerRow.toKingdom(): RealmKingdom = RealmKingdom(
@@ -110,5 +114,7 @@ fun PlayerRow.toKingdom(): RealmKingdom = RealmKingdom(
     allianceId = allianceId.orEmpty(),
     allianceTag = "",
     shieldUntilEpochMs = shieldUntil.toEpochMs(),
-    isBot = isBot
+    isBot = isBot,
+    avatar = avatar,
+    avatarUrl = avatarUrl.orEmpty()
 )

@@ -46,10 +46,10 @@ Most need a second Google account (a friend or a second phone).
 - [ ] Landmarks (mine, quarry, lumberyard, granary, shrine), resource sites and visitor camps are painted too
 
 ## Avatars (SQL part 14)
-- [ ] Tap the circle at top-left → picker opens
-- [ ] Pick a crest: it shows in the top bar with the Keep level badge
+- [x] Tap the circle at top-left → picker opens
+- [x] Pick a crest: it shows in the top bar with the Keep level badge
 - [ ] Pick Google: your Google photo shows
-- [ ] The 10 painted portraits appear in the picker and look right in the top bar
+- [x] The 10 painted portraits appear in the picker and look right in the top bar
 - [ ] Tap another castle on the map: their avatar shows in the sheet
 
 ## Lord profiles (SQL part 16)

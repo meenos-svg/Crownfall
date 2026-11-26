@@ -49,6 +49,7 @@ Most need a second Google account (a friend or a second phone).
 - [ ] Tap the circle at top-left → picker opens
 - [ ] Pick a crest: it shows in the top bar with the Keep level badge
 - [ ] Pick Google: your Google photo shows
+- [ ] The 10 painted portraits appear in the picker and look right in the top bar
 - [ ] Tap another castle on the map: their avatar shows in the sheet
 
 ## Citadel

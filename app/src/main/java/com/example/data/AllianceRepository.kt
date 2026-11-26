@@ -1,6 +1,5 @@
 package com.example.data
 
-import android.util.Log
 import com.google.firebase.Timestamp
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
@@ -8,26 +7,12 @@ import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.channelFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.util.Date
-import java.util.UUID
-
-/** Asks every polling flow (alliances, chat, aid, invites, own empire) to refresh now. */
-object GameSignals {
-    val refresh = MutableSharedFlow<Unit>(extraBufferCapacity = 8)
-    fun poke() { refresh.tryEmit(Unit) }
-}
 
 @Serializable
 private data class AllianceRow(
@@ -99,14 +84,40 @@ private data class InviteRow(
     val inviter: NameOnly? = null
 )
 
-private fun String?.toTimestamp(): Timestamp? =
+@Serializable
+private data class ParticipantRow(
+    @SerialName("player_id") val playerId: String = "",
+    val power: Long = 0,
+    val players: NameOnly? = null
+)
+
+@Serializable
+private data class RallyRow(
+    val id: String = "",
+    @SerialName("alliance_id") val allianceId: String = "",
+    @SerialName("leader_id") val leaderId: String = "",
+    @SerialName("target_type") val targetType: String = "BASTION",
+    @SerialName("target_id") val targetId: String = "",
+    @SerialName("target_name") val targetName: String = "",
+    @SerialName("target_x") val targetX: Int = 0,
+    @SerialName("target_y") val targetY: Int = 0,
+    @SerialName("total_power") val totalPower: Long = 0,
+    @SerialName("target_power") val targetPower: Long = 0,
+    @SerialName("launch_at") val launchAt: String? = null,
+    @SerialName("arrives_at") val arrivesAt: String? = null,
+    val status: String = "GATHERING",
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("updated_at") val updatedAt: String? = null,
+    val leader: NameOnly? = null,
+    @SerialName("rally_participants") val participants: List<ParticipantRow> = emptyList()
+)
+
+internal fun String?.toTimestamp(): Timestamp? =
     this.toEpochMs().takeIf { it > 0 }?.let { Timestamp(Date(it)) }
 
 /**
  * Alliances live in Supabase. Every change goes through a server function
  * (part 5 SQL) that checks rank and rules; the app only reads and polls.
- * War rallies are still kept on this device until marches and battles move
- * to the server.
  */
 class AllianceRepository(
     @Suppress("unused") private val db: Any? = null,
@@ -115,18 +126,6 @@ class AllianceRepository(
     private val client get() = SupabaseProvider.client
     private val myUid: String get() = client.auth.currentUserOrNull()?.id.orEmpty()
 
-    private val ralliesByAlliance = MutableStateFlow<Map<String, List<AllianceRally>>>(emptyMap())
-
-    /** Fetch immediately, then again every [intervalMs] or whenever something pokes [GameSignals]. */
-    private fun <T> polled(intervalMs: Long, fetch: suspend () -> T): Flow<T> = channelFlow {
-        while (isActive) {
-            runCatching { fetch() }
-                .onSuccess { send(it) }
-                .onFailure { Log.w(TAG, "Alliance refresh failed", it) }
-            withTimeoutOrNull(intervalMs) { GameSignals.refresh.first() }
-        }
-    }
-
     private suspend fun rpc(name: String, params: JsonObject = JsonObject(emptyMap())) =
         client.postgrest.rpc(name, params)
 
@@ -134,7 +133,7 @@ class AllianceRepository(
 
     // ------------------------------------------------------------------ reads
 
-    fun observeAlliances(): Flow<List<Alliance>> = polled(15_000L) {
+    fun observeAlliances(): Flow<List<Alliance>> = pollingFlow(TAG, 15_000L) {
         val rows = client.from("alliances").select {
             order("total_power", Order.DESCENDING)
             limit(100)
@@ -167,7 +166,7 @@ class AllianceRepository(
         }
     }
 
-    fun observeMessages(allianceId: String, userId: String): Flow<List<AllianceMessage>> = polled(5_000L) {
+    fun observeMessages(allianceId: String, userId: String): Flow<List<AllianceMessage>> = pollingFlow(TAG, 5_000L) {
         client.from("alliance_messages").select {
             filter { eq("alliance_id", allianceId) }
             order("created_at", Order.DESCENDING)
@@ -186,10 +185,49 @@ class AllianceRepository(
         }
     }
 
-    fun observeRallies(allianceId: String, userId: String): Flow<List<AllianceRally>> =
-        ralliesByAlliance.map { map -> map[allianceId].orEmpty() }
+    fun observeRallies(allianceId: String, userId: String): Flow<List<AllianceRally>> = pollingFlow(TAG, 5_000L) {
+        val cutoff = System.currentTimeMillis() - 15 * 60_000L
+        client.from("rallies").select(
+            Columns.raw("*, leader:players!rallies_leader_id_fkey(username), rally_participants(player_id, power, players(username))")
+        ) {
+            filter {
+                eq("alliance_id", allianceId)
+                neq("status", "CANCELLED")
+            }
+            order("created_at", Order.DESCENDING)
+            limit(10)
+        }.decodeList<RallyRow>()
+            .filter { it.status == "GATHERING" || it.status == "MARCHING" || it.updatedAt.toEpochMs() > cutoff }
+            .map { r ->
+                val marching = r.status == "MARCHING"
+                AllianceRally(
+                    id = r.id,
+                    allianceId = r.allianceId,
+                    leaderUid = r.leaderId,
+                    leaderName = r.leader?.username.orEmpty(),
+                    targetType = r.targetType,
+                    targetId = r.targetId,
+                    targetName = r.targetName,
+                    targetX = (r.targetX / SERVER_MAP_SCALE).toLong(),
+                    targetY = (r.targetY / SERVER_MAP_SCALE).toLong(),
+                    targetPower = r.targetPower,
+                    totalPower = r.totalPower,
+                    participantUids = r.participants.map { it.playerId },
+                    participantSummary = r.participants.joinToString(", ") {
+                        "${it.players?.username.orEmpty()} (${formatCompact(it.power)})"
+                    },
+                    launchAtEpochMs = if (marching) r.arrivesAt.toEpochMs() else r.launchAt.toEpochMs(),
+                    status = when (r.status) {
+                        "MARCHING" -> "LAUNCHED"
+                        else -> r.status
+                    },
+                    memberUids = emptyList(),
+                    createdAt = r.createdAt.toTimestamp()
+                )
+            }
+    }
 
-    fun observeAidRequests(allianceId: String, userId: String): Flow<List<ResourceAidRequest>> = polled(8_000L) {
+    fun observeAidRequests(allianceId: String, userId: String): Flow<List<ResourceAidRequest>> = pollingFlow(TAG, 8_000L) {
         client.from("aid_requests").select(Columns.raw("*, players(username)")) {
             filter {
                 eq("alliance_id", allianceId)
@@ -212,9 +250,9 @@ class AllianceRepository(
         }
     }
 
-    fun observeMyInvites(userId: String): Flow<List<AllianceInvite>> = polled(15_000L) {
+    fun observeMyInvites(userId: String): Flow<List<AllianceInvite>> = pollingFlow(TAG, 15_000L) {
         val me = myUid
-        if (me.isBlank()) return@polled emptyList()
+        if (me.isBlank()) return@pollingFlow emptyList()
         client.from("alliance_invites").select(
             Columns.raw("*, alliances(name, tag), inviter:players!alliance_invites_inviter_id_fkey(username)")
         ) {
@@ -276,7 +314,6 @@ class AllianceRepository(
 
     suspend fun leaveOrDisbandAlliance(empire: PlayerEmpire, alliance: Alliance): Result<Unit> = supabaseResult {
         rpc("leave_alliance")
-        ralliesByAlliance.value = ralliesByAlliance.value - alliance.id
         afterChange()
     }
 
@@ -295,7 +332,15 @@ class AllianceRepository(
         afterChange()
     }
 
-    // ------------------------------------------------------------------ rallies (still on this device)
+    // ------------------------------------------------------------------ war rallies
+
+    /** Sends every troop at home; the server checks the counts. */
+    private fun allHomeTroops(empire: PlayerEmpire) = buildJsonObject {
+        put("p_infantry", empire.infantry)
+        put("p_cavalry", empire.cavalry)
+        put("p_archers", empire.archers)
+        put("p_siege", empire.siege)
+    }
 
     suspend fun launchRally(
         empire: PlayerEmpire,
@@ -307,36 +352,16 @@ class AllianceRepository(
         targetY: Long,
         targetPower: Long,
         committedPower: Long
-    ): Result<Unit> {
-        val uid = empire.userId.ifBlank { "local-player-1" }
-        val powerCommit = committedPower.coerceAtLeast(100L)
-        val rally = AllianceRally(
-            id = UUID.randomUUID().toString(),
-            allianceId = alliance.id,
-            leaderUid = uid,
-            leaderName = empire.lordName,
-            targetType = targetType,
-            targetId = targetId,
-            targetName = targetName.take(48),
-            targetX = targetX.coerceIn(0L, 99L),
-            targetY = targetY.coerceIn(0L, 99L),
-            targetPower = targetPower.coerceAtLeast(100L),
-            totalPower = powerCommit,
-            participantUids = listOf(uid),
-            participantSummary = "${empire.lordName} (${formatCompact(powerCommit)})",
-            launchAtEpochMs = System.currentTimeMillis() + 60_000L,
-            status = "GATHERING",
-            memberUids = alliance.memberUids
-        )
-        val current = ralliesByAlliance.value[alliance.id].orEmpty()
-        ralliesByAlliance.value = ralliesByAlliance.value + (alliance.id to (listOf(rally) + current))
-        sendMessage(
-            empire,
-            alliance,
-            "WAR RALLY called against $targetName ($targetX, $targetY)! Join before launch!",
-            messageType = "RALLY"
-        )
-        return Result.success(Unit)
+    ): Result<Unit> = supabaseResult {
+        if (empire.garrisonPower() <= 0L) error("You have no troops at home to lead a rally.")
+        val params = buildJsonObject {
+            put("p_target_type", targetType)
+            put("p_target_id", targetId)
+            allHomeTroops(empire).forEach { (k, v) -> put(k, v) }
+            put("p_wait_seconds", 60)
+        }
+        rpc("launch_rally", params)
+        afterChange()
     }
 
     suspend fun joinRally(
@@ -344,67 +369,41 @@ class AllianceRepository(
         alliance: Alliance,
         rally: AllianceRally,
         committedPower: Long
-    ): Result<Unit> {
-        val uid = empire.userId.ifBlank { "local-player-1" }
-        if (uid in rally.participantUids) {
-            return Result.failure(IllegalStateException("You already joined this rally."))
+    ): Result<Unit> = supabaseResult {
+        if (empire.garrisonPower() <= 0L) error("You have no troops at home to send.")
+        val params = buildJsonObject {
+            put("p_rally", rally.id)
+            allHomeTroops(empire).forEach { (k, v) -> put(k, v) }
         }
-        val powerCommit = committedPower.coerceAtLeast(100L)
-        val updatedList = ralliesByAlliance.value[alliance.id].orEmpty().map {
-            if (it.id == rally.id) {
-                it.copy(
-                    participantUids = it.participantUids + uid,
-                    participantSummary = "${it.participantSummary}, ${empire.lordName} (${formatCompact(powerCommit)})".take(300),
-                    totalPower = it.totalPower + powerCommit
-                )
-            } else {
-                it
-            }
-        }
-        ralliesByAlliance.value = ralliesByAlliance.value + (alliance.id to updatedList)
-        return Result.success(Unit)
+        rpc("join_rally", params)
+        afterChange()
     }
 
+    /** "Launch Strike": the leader sends a gathering rally right away. */
     suspend fun resolveRally(
         empire: PlayerEmpire,
         alliance: Alliance,
         rally: AllianceRally
-    ): Result<BattleLog> {
-        val uid = empire.userId.ifBlank { "local-player-1" }
-        val npc = GameCatalog.worldNpcNodes.firstOrNull { it.id == rally.targetId }
-        val outcome = GameCatalog.resolveCombat(
-            attackerPower = rally.totalPower,
-            siegeSent = empire.siege,
-            defenderPower = rally.targetPower,
-            targetType = rally.targetType,
-            alliance = alliance,
-            npcNode = npc
-        )
-        val battleLog = BattleLog(
-            id = UUID.randomUUID().toString(),
-            realmId = REALM_ID,
-            attackerUid = uid,
-            attackerName = "[${alliance.tag}] War Rally",
-            attackerTag = alliance.tag,
-            defenderUid = rally.targetId,
-            defenderName = rally.targetName,
-            defenderTag = if (rally.targetType == "BASTION") "NPC" else "PVP",
-            battleType = "RALLY",
-            victory = outcome.victory,
-            attackerPower = outcome.effectiveAttackerPower,
-            defenderPower = outcome.defenderPower,
-            troopsLost = outcome.troopsLost,
-            lootFood = outcome.lootFood,
-            lootTimber = outcome.lootTimber,
-            lootStone = outcome.lootStone,
-            lootGold = outcome.lootGold,
-            allianceId = alliance.id
-        )
-        val updatedList = ralliesByAlliance.value[alliance.id].orEmpty().map {
-            if (it.id == rally.id) it.copy(status = "RESOLVED") else it
+    ): Result<String> = supabaseResult {
+        when {
+            rally.status != "GATHERING" -> {
+                rpc("resolve_due_battles")
+                afterChange()
+                "The rally is already marching on ${rally.targetName}."
+            }
+            rally.leaderUid != myUid ->
+                "Only ${rally.leaderName} can launch early. It marches automatically when the timer ends."
+            else -> {
+                rpc("launch_rally_now", buildJsonObject { put("p_rally", rally.id) })
+                afterChange()
+                "Strike launched! The rally marches on ${rally.targetName}."
+            }
         }
-        ralliesByAlliance.value = ralliesByAlliance.value + (alliance.id to updatedList)
-        return Result.success(battleLog)
+    }
+
+    suspend fun cancelRally(rally: AllianceRally): Result<Unit> = supabaseResult {
+        rpc("cancel_rally", buildJsonObject { put("p_rally", rally.id) })
+        afterChange()
     }
 
     // ------------------------------------------------------------------ aid & tech

@@ -20,6 +20,7 @@ import com.example.data.ResourceType
 import com.example.data.TroopType
 import com.example.data.UiState
 import com.example.data.WorldMarch
+import com.example.data.MarchStillMarching
 import com.example.data.WorldWarRepository
 import com.example.data.formatCompact
 import com.example.data.unwrapFirestoreError
@@ -214,23 +215,28 @@ class CrownfallViewModel(
         }
 
         val arrivedMarches = activeMarches.value.filter {
-            it.ownerUid == currentUserId && it.status == "MARCHING" && it.arrivesAtEpochMs <= now
+            it.ownerUid == currentUserId && it.status == "MARCHING" &&
+                it.marchType != "RALLY" && it.arrivesAtEpochMs <= now
         }
         arrivedMarches.forEach { march ->
             if (resolvingMarchIds.add(march.id)) {
                 viewModelScope.launch {
-                    try {
-                        val targetKingdom = realmKingdoms.value.firstOrNull { it.ownerUid == march.targetId }
-                        worldWarRepository.resolveMarch(emp, currentAlliance.value, march, targetKingdom)
-                            .onSuccess { log ->
-                                val tag = if (log.battleType == "GATHER") "Expedition complete"
-                                else if (log.victory) "VICTORY at ${log.defenderName}"
-                                else "DEFEAT at ${log.defenderName}"
-                                postMessage("$tag! +${formatCompact(log.lootFood)}F +${formatCompact(log.lootGold)}G")
+                    val targetKingdom = realmKingdoms.value.firstOrNull { it.ownerUid == march.targetId }
+                    worldWarRepository.resolveMarch(emp, currentAlliance.value, march, targetKingdom)
+                        .onSuccess { log ->
+                            val tag = if (log.battleType == "GATHER") "Expedition complete"
+                            else if (log.victory) "VICTORY at ${log.defenderName}"
+                            else "DEFEAT at ${log.defenderName}"
+                            postMessage("$tag! +${formatCompact(log.lootFood)}F +${formatCompact(log.lootGold)}G")
+                        }
+                        .onFailure { err ->
+                            if (err.cause is MarchStillMarching) {
+                                delay(2_000L)
+                                resolvingMarchIds.remove(march.id)
+                            } else {
+                                postMessage(err.localizedMessage ?: "March report unavailable.")
                             }
-                    } finally {
-                        resolvingMarchIds.remove(march.id)
-                    }
+                        }
                 }
             }
         }
@@ -471,10 +477,7 @@ class CrownfallViewModel(
         val alliance = currentAlliance.value ?: return
         runAction {
             allianceRepository.resolveRally(emp, alliance, rally)
-                .onSuccess { log ->
-                    val label = if (log.victory) "RALLY VICTORY" else "RALLY DEFEAT"
-                    postMessage("$label vs ${rally.targetName}! +${formatCompact(log.lootGold)} Gold")
-                }
+                .onSuccess { postMessage(it) }
                 .onFailure { postMessage(it.localizedMessage ?: "Could not resolve rally.") }
         }
     }

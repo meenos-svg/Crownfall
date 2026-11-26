@@ -45,6 +45,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -52,6 +53,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
@@ -59,6 +62,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.example.data.Alliance
@@ -91,6 +95,9 @@ import com.example.ui.theme.TimberMoss
 import com.example.ui.theme.WarCrimson
 import com.example.ui.theme.WeatheredAsh
 import kotlin.math.hypot
+import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToLong
 
 sealed interface MapTarget {
@@ -158,13 +165,23 @@ fun RealmMapScreen(
             GameCatalog.worldNpcNodes.map { MapTarget.NpcSite(it) }
     }
 
-    fun worldToScreen(wx: Long, wy: Long, size: IntSize): Offset {
+    fun worldToScreenF(wx: Float, wy: Float, size: IntSize): Offset {
         val base = minOf(size.width, size.height).toFloat().coerceAtLeast(1f) * zoomScale
         val cx = size.width / 2f + panOffset.x
         val cy = size.height / 2f + panOffset.y
         val nx = (wx - empire.coordX) / 60f
         val ny = (wy - empire.coordY) / 60f
         return Offset(cx + nx * base, cy + ny * base)
+    }
+
+    fun worldToScreen(wx: Long, wy: Long, size: IntSize): Offset =
+        worldToScreenF(wx.toFloat(), wy.toFloat(), size)
+
+    // Generated landscape for this realm (same realm id -> same map for every player).
+    val realmId = kingdoms.firstOrNull { it.ownerUid == empire.userId }?.realmId
+        ?.takeIf { it.isNotBlank() } ?: "realm-1"
+    val terrain by produceState<RealmTerrain?>(initialValue = null, realmId) {
+        value = withContext(Dispatchers.Default) { RealmTerrainGenerator.generate(realmId) }
     }
 
     val myMarches = remember(activeMarches, empire.userId) {
@@ -183,10 +200,12 @@ fun RealmMapScreen(
                 .onSizeChanged { canvasSize = it }
                 .pointerInput(Unit) {
                     detectTransformGestures { _, pan, zoom, _ ->
-                        zoomScale = (zoomScale * zoom).coerceIn(0.75f, 2.8f)
+                        zoomScale = (zoomScale * zoom).coerceIn(0.35f, 3.2f)
+                        // Allow panning across the whole realm from wherever your keep is.
+                        val limit = minOf(canvasSize.width, canvasSize.height) * zoomScale * 1.8f
                         panOffset = Offset(
-                            (panOffset.x + pan.x).coerceIn(-900f, 900f),
-                            (panOffset.y + pan.y).coerceIn(-900f, 900f)
+                            (panOffset.x + pan.x).coerceIn(-limit, limit),
+                            (panOffset.y + pan.y).coerceIn(-limit, limit)
                         )
                     }
                 }
@@ -215,16 +234,90 @@ fun RealmMapScreen(
                 )
             )
 
+            // Realm landscape
+            terrain?.let { t ->
+                val topLeft = worldToScreenF(0f, 0f, canvasSize)
+                val bottomRight = worldToScreenF(
+                    RealmTerrainGenerator.WORLD_SIZE, RealmTerrainGenerator.WORLD_SIZE, canvasSize
+                )
+                drawImage(
+                    image = t.image,
+                    srcOffset = IntOffset.Zero,
+                    srcSize = IntSize(t.image.width, t.image.height),
+                    dstOffset = IntOffset(topLeft.x.roundToInt(), topLeft.y.roundToInt()),
+                    dstSize = IntSize(
+                        (bottomRight.x - topLeft.x).roundToInt().coerceAtLeast(1),
+                        (bottomRight.y - topLeft.y).roundToInt().coerceAtLeast(1)
+                    ),
+                    filterQuality = FilterQuality.Low
+                )
+
+                // Trees and mountain peaks appear once you zoom in far enough to see them.
+                val unitPx = minOf(canvasSize.width, canvasSize.height) * zoomScale / 60f
+                if (unitPx >= 9f) {
+                    val margin = unitPx * 2
+                    fun visible(p: Offset) =
+                        p.x > -margin && p.y > -margin && p.x < size.width + margin && p.y < size.height + margin
+
+                    val treePath = Path()
+                    val treeH = unitPx * 0.9f
+                    val treeW = unitPx * 0.42f
+                    t.trees.forEach { w ->
+                        val p = worldToScreenF(w.x, w.y, canvasSize)
+                        if (visible(p)) {
+                            treePath.moveTo(p.x, p.y - treeH * 0.6f)
+                            treePath.lineTo(p.x + treeW, p.y + treeH * 0.4f)
+                            treePath.lineTo(p.x - treeW, p.y + treeH * 0.4f)
+                            treePath.close()
+                        }
+                    }
+                    drawPath(treePath, Color(0xFF13281A))
+
+                    val peakPath = Path()
+                    val snowPath = Path()
+                    val peakH = unitPx * 1.3f
+                    val peakW = unitPx * 0.9f
+                    t.peaks.forEach { w ->
+                        val p = worldToScreenF(w.x, w.y, canvasSize)
+                        if (visible(p)) {
+                            peakPath.moveTo(p.x, p.y - peakH * 0.6f)
+                            peakPath.lineTo(p.x + peakW, p.y + peakH * 0.4f)
+                            peakPath.lineTo(p.x - peakW, p.y + peakH * 0.4f)
+                            peakPath.close()
+                            snowPath.moveTo(p.x, p.y - peakH * 0.6f)
+                            snowPath.lineTo(p.x + peakW * 0.32f, p.y - peakH * 0.28f)
+                            snowPath.lineTo(p.x - peakW * 0.32f, p.y - peakH * 0.28f)
+                            snowPath.close()
+                        }
+                    }
+                    drawPath(peakPath, Color(0xFF3E3B37))
+                    drawPath(snowPath, Color(0xFFD9D6CF))
+                }
+            }
+
+            // Old roads from the realm's heart to each Shadow Bastion
+            val roadEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f), 0f)
+            val heart = worldToScreen(50L, 50L, canvasSize)
+            GameCatalog.worldNpcNodes.filter { it.targetType == "BASTION" }.forEach { node ->
+                drawLine(
+                    color = Color(0xFF8A7650).copy(alpha = 0.55f),
+                    start = heart,
+                    end = worldToScreen(node.coordX, node.coordY, canvasSize),
+                    strokeWidth = 2.5f,
+                    pathEffect = roadEffect
+                )
+            }
+
             // Tactical grid lines
             val step = 10L
             for (g in 0L..100L step step) {
                 val pStartV = worldToScreen(g, 0L, canvasSize)
                 val pEndV = worldToScreen(g, 100L, canvasSize)
-                drawLine(EtchedSteel.copy(alpha = 0.22f), pStartV, pEndV, strokeWidth = 1.2f)
+                drawLine(EtchedSteel.copy(alpha = 0.10f), pStartV, pEndV, strokeWidth = 1f)
 
                 val pStartH = worldToScreen(0L, g, canvasSize)
                 val pEndH = worldToScreen(100L, g, canvasSize)
-                drawLine(EtchedSteel.copy(alpha = 0.22f), pStartH, pEndH, strokeWidth = 1.2f)
+                drawLine(EtchedSteel.copy(alpha = 0.10f), pStartH, pEndH, strokeWidth = 1f)
             }
 
             // Realm Center Citadel Territory Ring around (50, 50)

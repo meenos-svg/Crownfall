@@ -22,14 +22,18 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Create .env from GitHub Secrets
+        run: |
+          cat << 'EOF' > .env
+          SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          EOF
+
       - name: Make gradlew executable
         run: chmod +x gradlew
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Rename APK
         run: cp app/build/outputs/apk/debug/app-debug.apk Crownfall-latest.apk

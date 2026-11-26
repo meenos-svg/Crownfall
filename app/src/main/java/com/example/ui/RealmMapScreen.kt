@@ -526,7 +526,7 @@ fun RealmMapScreen(
                         ResourceType.STONE -> "res_stone"
                         else -> "res_gold"
                     }]
-                    if (resSprite != null) drawMapSprite(resSprite, pos, markerS * 2.7f, anchorY = 0.62f)
+                    if (resSprite != null) drawMapSprite(resSprite, pos, markerS * 3.2f, anchorY = 0.62f)
                     else drawResourceSite(pos, markerS * 0.62f, node.resourceType, resColor)
                 }
             }
